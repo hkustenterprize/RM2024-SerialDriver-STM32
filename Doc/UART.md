@@ -136,14 +136,383 @@ NewRosComm/
 
 #### 简述
 
-发送模块内蕴一个环形缓冲区，接受来自**多个**用户线程的写入与TX DMA的读取，因而，这个缓冲区是*MISO*的。前文已经叙述， 环形缓冲区天然对*SISO*的操作提供了无锁支持，然而在*MISO*的条件下，不同的用户线程之间对缓冲区的占用存在竞争。设想情况如下—— 线程A正在向缓冲区写入数据， 而此时操作系统的上下文被SysTick触发被转交给了线程B，而恰好线程B亦试图写入数据，由于此时线程A还来不及更新写指针，因而线程B的写入数据将会覆写线程A的写入区域，造成其被污染的不快后果。
+发送模块内蕴一个环形缓冲区，接受来自**多个**用户线程的写入与TX DMA的读取，因而，这个缓冲区是*MISO*的。前文已经叙述， 环形缓冲区天然对*SISO*的操作提供了无锁支持，然而在*MISO*的条件下，不同的用户线程之间对缓冲区的占用存在竞争。设想情况如下—— 线程A正在向缓冲区写入数据， 而此时操作系统的上下文被SysTick触发被转交给了线程B，而恰好线程B亦试图写入数据，由于此时线程A还来不及更新写指针，因而线程B的写入数据将会覆写线程A的写入区域，造成整片缓冲区被污染的不快后果。
 
 解决这个问题的最直接的方法便是为环形缓冲区赋予一个互斥锁（Mutex），将缓冲区视为一个独占资源，每当一个线程试图访问一个被其他线程占有的缓冲区资源，直到这个缓冲区的独占权被占有的线程释放， 这个线程都会被操作系统阻塞。然而，如果程序中存在大量访问同一个缓冲区的线程，这个过程将会产生大量操作系统的上下文切换，单片机的算力本就紧张，这些额外的性能开销虽然不致命但是足以令人不快。另一个容易想到的办法便是将整个写入的操作声明为原子操作，禁止所有的上下文切换，这虽然可以规避互斥锁所带来的额外的调度开销，然而缺点亦显而易见—— 由于写入内存的操作的用时开销较大，系统便会长时间地处于原子屏蔽的状态中，操作系统的实时性也会因此降低。
 
 本文提出了另外一种替代方案，通过巧妙地设置一些标志位成功地降低了原子操作的开销，同时亦能规避使用互斥锁。
 
+至于读取部分，由于我们可以认为访问这片缓冲区的DMA通道只有一个，因此不必对这种单读取的情况进行额外的流程控制。
+
 #### 程序解析
 
+```c++
+/**
+/*	@File MISOCircularBuffer.hpp
+ */
+
+/**
+ * @brief Realization of the MISO circular buffer.
+ * @tparam tpSize: The size of the buffer
+ */
+template <uint16_t tpSize>
+class MISOCiruclarBuffer
+{
+   public:
+    MISOCiruclarBuffer() = default;
+
+    constexpr static uint16_t MISO_BUFFER_SIZE = tpSize;
+
+    /**
+     * @brief Before writing data into the buffer, the caller should call this function
+     * This process will update the tail read index and increment the nested number by 1
+     * @param len: The length of the buffer to be written into the buffer
+     * @note The atmoic operation is needed in order to
+     */
+
+    uint8_t *enterWrite(uint16_t len)
+    {
+        uint8_t *ptr;
+        ATOMIC_ENTER_CRITICAL();
+        {
+            ptr = buffer + (wIndexTail + 1) % MISO_BUFFER_SIZE;
+            wNestedNum++;
+            wIndexTail = (wIndexTail + len) % MISO_BUFFER_SIZE;
+        }
+        ATOMIC_EXIT_CRITICAL();
+        return ptr;
+    }
+
+    /**
+     * @brief Atomically write the data into the buffer given the address and the length
+     * @param pData The start address of the data to be written
+     * @param len The length of the data to be written
+     */
+
+    bool write(uint8_t *pData, uint16_t len)
+    {
+        bool status = false;
+        uint16_t availableSize;
+
+        ATOMIC_ENTER_CRITICAL();
+        {
+            availableSize = MISO_BUFFER_SIZE - pendingSize;
+        }
+        ATOMIC_EXIT_CRITICAL();
+
+        if (len > availableSize)
+        {
+            return status;
+        }
+
+        uint8_t *ptr           = this->enterWrite(len);
+        uint32_t firstPartSize = (MISO_BUFFER_SIZE - ((uint32_t)ptr - (uint32_t)buffer));
+
+        if (len > firstPartSize)
+        {
+            memcpy(ptr, pData, firstPartSize);
+            memcpy(buffer, pData + firstPartSize, len - firstPartSize);
+        }
+        else
+        {
+            memcpy(ptr, pData, len);
+        }
+
+        this->exitWrite();
+        status = true;
+        return status;
+    }
+
+    /**
+     * @brief After finish writing the data, the caller should called this function to exit its writing process
+     * This process will update the head read index and decrement the nested number
+     */
+
+    void exitWrite()
+    {
+        ATOMIC_ENTER_CRITICAL();
+        {
+            wNestedNum--;
+            if (wNestedNum == 0)
+            {
+                wIndexHead  = wIndexTail;
+                pendingSize = (wIndexHead - rIndex + MISO_BUFFER_SIZE) % MISO_BUFFER_SIZE;
+            }
+        }
+        ATOMIC_EXIT_CRITICAL();
+    }
+    /**
+     * @brief Before reading the data, the reader should call this function to initialize the read process
+     * @brief This function would increatment the reading nested number by 1 and verify that currently any other is occupying the buffer.
+     * @param len The length of the data section to be written
+     * @return Suppose the reading is valid, it will return the next readable data section's address, otherwise it would return nullptr
+     */
+    uint8_t *enterRead(uint16_t len)
+    {
+        uint8_t *ptr;
+
+        ATOMIC_ENTER_CRITICAL();
+        {
+            if (rNestedNum > 0 || pendingSize == 0)
+            {
+                ptr = nullptr;
+            }
+
+            else
+            {
+                readNum = len;
+                ptr     = buffer + (rIndex + 1) % MISO_BUFFER_SIZE;
+            }
+            rNestedNum++;
+        }
+        ATOMIC_EXIT_CRITICAL();
+        return ptr;
+    }
+
+    /**
+     * @brief After reading the data, the reader should call this function to release the buffer in thread
+     * @brief This function would update the read index and decrement the number by 1
+     */
+    void exitRead()
+    {
+        ATOMIC_ENTER_CRITICAL();
+        {
+            rIndex      = (rIndex + readNum) % MISO_BUFFER_SIZE;
+            pendingSize = (wIndexTail - rIndex + MISO_BUFFER_SIZE) % MISO_BUFFER_SIZE;
+            rNestedNum--;
+            readNum = 0;
+        }
+        ATOMIC_EXIT_CRITICAL();
+    }
+    /**
+     * @brief After reading the data, the reader should call this function to release the buffer in interrupt routine
+     * @brief This function would update the read index and decrement the number by 1
+     */
+    void exitReadFromISR()
+    {
+        BaseType_t interruptMask = taskENTER_CRITICAL_FROM_ISR();
+        {
+            rIndex      = (rIndex + readNum) % MISO_BUFFER_SIZE;
+            pendingSize = (wIndexTail - rIndex + MISO_BUFFER_SIZE) % MISO_BUFFER_SIZE;
+            rNestedNum--;
+            readNum = 0;
+        }
+        taskEXIT_CRITICAL_FROM_ISR(interruptMask);
+    }
+
+    /**
+     * @brief Get the number of bytes in the buffer pending for reading
+     * @return The bytes number
+     */
+    uint16_t getNextAvailableReadSize() const { return pendingSize; }
+
+    /**
+     * @brief Get the number of bytes in the buffer pending for reading considering the discontiniuty in memory address
+     * @brief Mainly provide by DMA operating in normal mode
+     * @return The bytes number
+     */
+    uint16_t getNextAvailableReadSizeNoCircular()
+    {
+        uint16_t size;
+        ATOMIC_ENTER_CRITICAL();
+        {
+            if (wIndexHead < rIndex && rIndex < MISO_BUFFER_SIZE - 1)
+            {
+                size = MISO_BUFFER_SIZE - rIndex - 1;
+            }
+            else
+            {
+                size = pendingSize;
+            }
+        }
+        ATOMIC_EXIT_CRITICAL();
+        return size;
+    }
+
+    uint16_t getWriteNestedNum() { return wNestedNum; }
+
+    uint16_t getReadNestedNum() { return rNestedNum; }
+
+   private:
+    /*Memory storage space for the whole buffer*/
+    uint8_t buffer[MISO_BUFFER_SIZE] = {0};
+    /*Writing tail index*/
+    // This index denotes the farest position that the coroutines have declared to write
+    // Update when the routine calls "enterWrite()"
+    int16_t wIndexTail = -1;
+
+    /*Write head index*/
+    // This index denotes the position that the coroutines have finished to write
+    // Update when the routine calls "exitWrite()"
+    int16_t wIndexHead = -1;
+
+    /*Read index*/
+    // This index denotes the position that the courtines have finished to read
+    // Update when the routine calls "enterRead()"
+    int16_t rIndex = -1;
+
+    uint16_t readNum = 0;
+
+    /*Write nested number*/
+    // This number indicated the nested status of the read operation over the buffer,
+    // which means how many routines are now reading the buffer.
+    uint16_t wNestedNum  = 0;
+    uint16_t rNestedNum  = 0;
+    uint16_t pendingSize = 0;
+};
+```
+
+如前文所述，管理发送缓冲区的痛点即为在正确地处理**多个**用户的写入同时降低系统的开销（线程阻塞、内存拷贝等）。本模块在继承了经典的环形缓冲区的结构之上，将 *写指针*拆分为 `wIndenTail` *(尾写指针)* 与 `wIndexHead` *头写指针*。 维护算法可以简单描述如下：
+
+
+
+#### 状态变量与说明
+
+
+
+| 符号  | 释义                   | 说明                                                         |
+| ----- | ---------------------- | ------------------------------------------------------------ |
+| $n$   | 缓冲区大小             | MISO缓冲区的大小。                                           |
+| $i$   | 读指针                 | 当前等待读取的连续的缓冲区首位地址。在DMA传输完成产生中断信号时候进行更新。DMA开始传输的时候， |
+| $j_1$ | 写尾指针               | 一段或多段正在被写入的连续的缓冲区的结尾。任何新开始的写入操作都会调用`enterWrite()`函数且立刻更新该变量如果某线程写入操作没有完成，而来自另一个线程的写入发生，那后者会根据当前$j_1$作为新的本地写入数据的起始点。 |
+| $j_2$ | 写头指针               | 一段或多段正在被写入的连续的缓冲区的开头相对于整片缓冲区的偏移。调用`exitWrite()`的函数表示当前写头指针$j_2$ 指向的，长度为写入的数据区大小的缓冲区已经被写入完成，所有权被释放。这段数据区的状态就从被写入的状态变为待读取的状态。 |
+| $N$   | 正在被写入的数据段数量 | 表示当前缓冲区中有多少个正在处理的写入动作，也表示当前有多少片正在更新的数据写入段。来自任意方的调用`enterWrite()`会为其增加一次计数，相对的， 每次调用`exitWrite()`都会减去一次计数。$N = 0$ 即表示当前缓冲区此时不被任何线程写入。 |
+
+
+
+#### 算法
+
+
+
+1. 用户线程每次写入大小为$s$的数据前，**原子性**地记录当前的写尾指针$j^*_1 = j_1$, ，并立刻更新 $j_1 \to (j_1 + s) \mod{(n)}$。 
+
+```cpp
+    /**
+     * @brief Before writing data into the buffer, the caller should call this 			function
+     * This process will update the tail read index and increment the nested number 		by 1
+     * @param len: The length of the buffer to be written into the buffer
+     * @note The atmoic operation is needed in order to
+     */
+
+    uint8_t *enterWrite(uint16_t len)
+    {
+        uint8_t *ptr;
+        ATOMIC_ENTER_CRITICAL();
+        {
+            ptr = buffer + (wIndexTail + 1) % MISO_BUFFER_SIZE;
+            wNestedNum++;
+            wIndexTail = (wIndexTail + len) % MISO_BUFFER_SIZE;
+        }
+        ATOMIC_EXIT_CRITICAL();
+        return ptr;
+    }
+```
+
+2. 以$(j^*_1 + 1)\mod{(n)}$为起点向缓冲区写入数据。
+
+3. 写入结束后，如果当前的嵌套变量$N = 0$, 那么更新写头指针$j_2 \to j_1$。
+
+```cpp
+    /**
+     * @brief After finish writing the data, the caller should called this function 	to exit its writing process
+     * This process will update the head read index and decrement the nested number
+     */
+
+    void exitWrite()
+    {
+        ATOMIC_ENTER_CRITICAL();
+        {
+            wNestedNum--;
+            if (wNestedNum == 0)
+            {
+                wIndexHead  = wIndexTail;
+                pendingSize = (wIndexHead - rIndex + MISO_BUFFER_SIZE) % MISO_BUFFER_SIZE;
+            }
+        }
+        ATOMIC_EXIT_CRITICAL();
+    }
+```
+
+4. 在这些过程中，如果DMA传输完成，依照常规更新读指针$i$; 此后如果$i < j_2$，那么立刻发起DMA请求传输$(i, j_2]$ 的数据段； 如果$i = j_2$，此时缓冲区待处理数据大小为$0$； 如果 $i > j_2$, 那么考虑数据被截断的情况，我们发起DMA请求传输 $(i, n - 1]$ 的数据段。
+
+
+
+```cpp
+/**
+/* @File NewRosComm.cpp
+*/
+
+
+void RosManager::txCpltCallback(UART_HandleTypeDef *handle)
+{
+    // traceISR_ENTER();
+    RosManager *pManager = getManager(handle);
+    pManager->txBuffer.exitReadFromISR();
+    if (pManager->txBuffer.getNextAvailableReadSizeNoCircular())
+    {
+        BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+        vTaskNotifyGiveFromISR(pManager->txTaskHandle, &xHigherPriorityTaskWoken);
+        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+    }
+    // traceISR_EXIT();
+}
+
+// ... 
+// ...
+
+void RosManager::txTask(void *pvParameters)
+{
+    RosManager *pManager = (RosManager *)pvParameters;
+    uint8_t *pData;
+    uint16_t txSize = 0;
+
+    while (true)
+    {
+        // Is there any pending message
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+        if (not(txSize = pManager->txBuffer.getNextAvailableReadSizeNoCircular()))
+        {
+#if USE_DEBUG
+            pManager->txErrorsCounter[eMISOBufferEmpty]++;
+#endif
+            continue;
+        }
+        ATOMIC_ENTER_CRITICAL();
+        {
+            if ((pData = pManager->txBuffer.enterRead(txSize)) == nullptr)
+            {
+                pManager->txBuffer.exitRead();
+#if USE_DEBUG
+                pManager->txErrorsCounter[eMISOBufferMutipleRead]++;
+#endif
+                continue;
+            }
+            if (HAL_UART_Transmit_DMA(pManager->huart, pData, txSize) == HAL_OK)
+            {
+                __HAL_DMA_DISABLE_IT(pManager->huart->hdmatx, DMA_IT_HT);
+            }
+            else  // Error
+            {
+                HAL_UART_AbortTransmit(pManager->huart);
+                pManager->txBuffer.exitRead();
+#if USE_DEBUG
+                pManager->txErrorsCounter[eHALNotOK]++;
+#endif
+            }
+        }
+        ATOMIC_EXIT_CRITICAL();
+    }
+}
+```
+
+
+
+
+
+##### 原子性分析
+
+为什么
 
 
 
@@ -152,7 +521,8 @@ NewRosComm/
 
 
 
-### 接收模块
+
+### 接收模块 
 
 
 

@@ -244,7 +244,7 @@ void RosManager::rxCallback(UART_HandleTypeDef *handle, uint16_t size)
     pManager->rxWIndex                  = wPtr;
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     vTaskNotifyGiveFromISR(pManager->rxTaskHandle, &xHigherPriorityTaskWoken);
-    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+    portYIELD_FROM_ISRa(xHigherPriorityTaskWoken);
     // traceISR_EXIT();
 }
 
