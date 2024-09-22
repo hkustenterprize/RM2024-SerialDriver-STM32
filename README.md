@@ -83,6 +83,10 @@ NewRosComm_INC =  \
 -I$(NewRosComm_PATH)/Utils
 ```
 
+此外，该模块需要搭配相应的上位机模块进行通信。请参照我们RM2024的上位机通讯开源：https://github.com/hkustenterprize/RM2024-RosComm
+
+
+
 
 
 **-注意事项-**
@@ -91,5 +95,13 @@ NewRosComm_INC =  \
 
 - 本模块仅在ENTERPRIZE战队的嵌入式开发环境中成功运行，**无法保证**在其他嵌入式环境下的兼容性，开源仅供学习参考而不直接提供现成部署方案。
 
+  
+  
+  
+  
+  ## 开源文档
+  
+  详情请见： https://github.com/hkustenterprize/RM2024-SerialDriver-STM32/blob/main/Doc/serial_driver_MCU_doc.md
+  
   
 

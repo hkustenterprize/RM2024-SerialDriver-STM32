@@ -22,7 +22,7 @@
 >
 > Github链接：https://github.com/hkustenterprize/RM2024-SerialDriver-STM32/tree/main
 >
-> 上位机通讯方案开源链接： 
+> 上位机通讯方案 (PART I) 开源链接： https://github.com/hkustenterprize/RM2024-RosComm
 
 ## 前言
 
@@ -160,9 +160,9 @@ HAL_StatusTypeDef HAL_UART_Transmit_DMA(UART_HandleTypeDef *huart, const uint8_t
 - 用户可以向缓冲区读取大小为 $s_2$ 大小的数据，并且更新*读指针* $j \to (j + s_2)\mod(n)$。
 - 当 $i = j \quad \mod (n)$ 时候，缓冲区为空。当 $j = i + 1 \quad \mod (n)$ 时， 缓冲区为满。在实际为用户设计读写接口时候需要谨慎地处理以上两种情况。
 
-[^一图胜千言]: ![Circular_Buffer_Animation.gif](https://github.com/hkustenterprize/RM2024-SerialDriver-STM32/blob/main/asset/Circular_Buffer_Animation.gif?raw=true)
+[^一图胜千言]: 
 
-![Circular_Buffer_Animation](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/Circular_Buffer_Animation.gif
+![Circular_Buffer_Animation.gif](https://github.com/hkustenterprize/RM2024-SerialDriver-STM32/blob/main/asset/Circular_Buffer_Animation.gif?raw=true)
 
 环形缓冲区提供了一些额外的好处：
 
@@ -872,7 +872,7 @@ void startUserTasks()
 
 *[0]: 总共收到的数据包数量； [1]: 收到帧头不完整的情况次数 ；[2]: 收到数据段不完整的情况；[3]: 帧头CRC错误；[4]: 整个数据帧CRC错误的情况*
 
-- 总共接收到 $8113356$ 个数据帧， 其中共有 $81$ 个包发生了CRC错误，计算下来CRC错误率为 $0.001\%$，可以基本忽略不计。此外，在整个过程中外设仅仅产生过一次报错的情况 $ (rxErrorCounter = 1)$
+- 总共接收到 $8113356$ 个数据帧， 其中共有 $81$ 个包发生了CRC错误，计算下来CRC错误率为 $0.001\%$，可以基本忽略不计。此外，在整个过程中外设仅仅产生过一次报错的情况。
 - 平均帧接收频率为 $8240 Hz$, 每个数据包如前文所述平均（可能估计不准，忘记为每个收到的包的数量作统计了）大小为 $\frac{16 + 19 + 33 + 13 + 20}{5} = 20.2$ bytes，整个系统有效传输信息量 > $10 \times 20.2 \times 8240 = 1.65M$ bits/s。
 
 
@@ -900,7 +900,7 @@ void startUserTasks()
 
 *“ros tx/rx task”是模块内部的守护线程，"1""2""3""4"是用户线程， “Sensor”是IMU驱动守护线程*
 
-由以上结果可知，即便在满负荷（单工带宽接近2M）运行的情况下，模块开销依然不高。在考虑SystemView带宽不够会导致观测overflow的情况下， 模块内部开销至多占系统总开销的 $5\%$，$4$ 个用户线程的开销至多在$10\%$左右。在赛场上我们的实际使用带宽远远低于最大带宽，实际占用开销可能就只有 $5\%$ 左右，可以令人满意。
+由以上结果可知，即便在满负荷（单工带宽接近2M）运行的情况下，模块开销依然不高。在考虑SystemView带宽不够会导致观测overflow的情况下， 模块内部开销至多占系统总开销的 $5\%$ ，$4$  个用户线程的开销至多在 $10\%$左右。在赛场上我们的实际使用带宽远远低于最大带宽，实际占用开销可能就只有 $5\%$ 左右，可以令人满意。
 
 
 
