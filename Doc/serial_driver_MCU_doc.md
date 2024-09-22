@@ -14,87 +14,15 @@
 
 > 作者: Fallengold (GUO, Zilin); Lawrence Ruan; Zoe Han (Han xinyi)
 >
-> 指导/提议：Li Gaoyang
+> 文档撰写：Fallengold (email: zguobd@connect.ust.hk)
+>
+> 指导/提议：Li Gaoyang, Sora
 >
 > 香港科技大学ENTERPRIZE战队 [robomasterhkust@gmail.com](mailto:robomasterhkust@gmail.com)
 >
-> Github链接：
+> Github链接：https://github.com/hkustenterprize/RM2024-SerialDriver-STM32/tree/main
 >
-> 上位机开源链接：
-
-
-
-## 开源文件结构
-
-
-
-本模块使用C++基于OOP的范式进行编写。文件的引用路径已经包含在`NewRosComm.mk`，使用时需要在主`Makefile`文件中手动添加模块的路，定义该模块的根目录`NewRosComm_PATH`，并手动将引用文件 `NewRosComm_INC`与源文件`NewRosComm_PATH_SRC` 路径添加进编译环境里面
-
-```makefile
-# Your Makefile
-# Define Root directory of the module
-NewRosComm_PATH = $(YOUR_DIR)/NewRosComm
-
-# Include makefile
-include $(NewRosComm_PATH)/NewRosComm.mk
-
-# ...
-# Append source files
-CPP_SRC += $(NewRosComm_SRC) \
-# ...
-
-# Append include path
-CPP_INCLUDES += $(NewRosComm_INC) \
-
-```
-
-```cpp
-# NewRosComm.mk
-
-# Sources
-NewRosComm_SRC = 
-$(NewRosComm_PATH)/NewRosComm.cpp \
-$(NewRosComm_PATH)/Utils/CRC.cpp
-
-
-# Includes
-NewRosComm_INC =  \
--I$(NewRosComm_PATH) \
--I$(NewRosComm_PATH)/Utils
-```
-
-
-
-**-注意事项-**
-
-- 本模块依赖于 `FreeRTOS` 提供的内核支持以及C标准库。如果直接使用本模块，请手动将`FreeRTOS` 与C标准库添加至编译环境中，本模块并不包含该环境。
-
-- 本模块仅在ENTERPRIZE战队的嵌入式开发环境中成功运行，**无法保证**在其他嵌入式环境下的兼容性，开源仅供学习参考而不直接提供现成部署方案。
-
-  
-
-#### 文件树
-
-```
-NewRosComm/
-|--- NewRosComm.cpp
-|--- NewRosComm.hpp
-|--- NewRosCommProtocol.hpp
-|--- NewRosCommConfig.hpp
-|--- NewRosComm.mk
-|--- Utils/
-    |--- CRC.hpp
-    |--- CRC.cpp
-    |--- MISOCircularBuffer.hpp
-```
-
-- `MISOCircularBuffer.hpp`：提供了MISO环形缓冲的实现。
-
-- `NewRosComm.*`：串口模块的主体部分，为用户调用提供了接口，负责整个模块的流程控制。
-
-- `NewRosCommProtocol.hpp`：串口模块的协议层， 用户可以在这个文件内部定义新的数据帧格式。
-
-- `CRC.*` 提供了数据包CRC校验算法的实现与支持。
+> 上位机通讯方案开源链接： 
 
 ## 前言
 
@@ -123,13 +51,13 @@ NewRosComm/
 
 ## 芯片电路
 
-![alt text](https://github.com/hkustenterprize/RM2024-MainControlBoard/raw/main/image/sch_ttl_ch343p.png)
+![sch_ttl_ch343p](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/sch_ttl_ch343p.png)
 
 我们将ACT脚引出，可以接入LED灯来方便查看USB的连接状态。电路设计的时候也将CTS和RTS两个流控脚引出，但我们在实际测试的时候发现流控有概率导致芯片死机且对整个通讯性能提升不显著，所以之后代码中就没有使能这两个引脚。更多关于电路板的设计，可以查看ENTERPRIZE战队G4主控板的开源 https://github.com/hkustenterprize/RM2024-MainControlBoard
 
 ## 基本配置
 
-本模块的部署环境为自研的STM32F407VE和STM32G473VE两款开发板，在STM32CUBEMX中的配置如下。
+本模块的部署环境为自研的STM32F407VE和STM32G473VE两款开发板，基于队伍工具链GCC ARM GNU工具链。项目文件在STM32CUBEMX中的配置如下。
 
 #### UART - USB - TTL 参数配置
 
@@ -148,25 +76,21 @@ NewRosComm/
 - TX DMA： 普通模式；bytes对齐
 - RX DMA： 环形模式；bytes对齐
 
-![image-20240922173403209](/home/fallengold/.config/Typora/typora-user-images/image-20240922173403209.png)
+![config_1](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/config_1.png)
+
+![config_2](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/config_2.png)
 
 
 
-![image-20240922173443144](/home/fallengold/.config/Typora/typora-user-images/image-20240922173443144.png)
-
-![image-20240922173454427](/home/fallengold/.config/Typora/typora-user-images/image-20240922173454427.png)
-
-
+![config_3](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/config_3.png)
 
 #### 一些额外说明
 
-- 如果有条件，尽量要开 *16 bits oversampling* 。官方文档显示，*oversampling*值越低，采样速率越高，但是对时钟的差异敏感越大。考虑到CH343P与G4芯片之间无时钟线同步时钟，采用的异步同步方法，我们理应选用 *16 bits oversampling。*这也与线下调试的实验结果相符合。
+- 如果有条件，尽量要开 *16 bits oversampling* 。官方文档显示，*oversampling*值越低，采样速率越高，但是对时钟的差异敏感越大。考虑到CH343P与G4芯片之间无时钟线同步时钟，采用的异步同步方法，我们理应选用 *16 bits oversampling。*这也与线下调试的实验结果相符合。![extra_description](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/extra_description.png)
 
-  ![img](https://cdn.discordapp.com/attachments/1097013077796462612/1249990871928147998/image.png?ex=66f11ab7&is=66efc937&hm=2db58cb70afd993fac3555c519220b18a3dfc09c108e16cc5839ab84df59c5ff&=)
+  
 
-- *Single Sample* 可开可不开，开了的话将会降低CRC错误率但是提高外设Noise Error的产生率。我们实测开了的话系统的综合表现会有略微的提升。
-
-![img](https://cdn.discordapp.com/attachments/1097013077796462612/1249991531188977775/image.png?ex=66f11b54&is=66efc9d4&hm=03653150891c4cb61b8e59f494d2f744bdab4476998f4f05c80d9cbd29fab57a&)
+- *Single Sample* 可开可不开，开了的话将会降低CRC错误率但是提高外设Noise Error的产生率。我们实测开了的话系统的综合表现会有略微的提升。![extra_description_2](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/extra_description_2.png)
 
 ## 模块综述
 
@@ -217,9 +141,9 @@ HAL_StatusTypeDef HAL_UART_Transmit_DMA(UART_HandleTypeDef *huart, const uint8_t
 
 ### 模块简图
 
+![UART_diagram](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/UART_diagram.png)
 
 
-![UART_diagram](/home/fallengold/Documents/RM2024/Open Source/asset/UART_diagram.png)
 
 ### 前置知识（1）：环形缓冲区
 
@@ -229,14 +153,14 @@ HAL_StatusTypeDef HAL_UART_Transmit_DMA(UART_HandleTypeDef *huart, const uint8_t
 
 具体实现机制可简要的表述如下：
 
-- 初始化一片**定长** $n$ 的内存（数组）作为储存空间， 其有效存储空间为$n - 1$。初始化读写双指针$i, j$为$-1$，为了规范化指针操作，我们规定$i$永远指向最后一位**已经写入**的内存地址，而$j$永远指向最后一位**已经读取**的内存地址。
-- 用户可以向缓冲区写入大小为$s_1$大小的数据，并且更新*写指针*$i \to (i + s_1) \operatorname{mod}(n)$。注意到我们利用了模运算符来实现了缓冲区“环形”的特性，以下读取操作同理。
+- 初始化一片**定长** $n$ 的内存（数组）作为储存空间， 其有效存储空间为 $n - 1$ 。初始化读写双指针 $i, j$ 为$-1$，为了规范化指针操作，我们规定$i$永远指向最后一位**已经写入**的内存地址，而$j$永远指向最后一位**已经读取**的内存地址。
+- 用户可以向缓冲区写入大小为$s_1$大小的数据，并且更新*写指针* $i \to (i + s_1) \mod(n) $。注意到我们利用了模运算符来实现了缓冲区“环形”的特性，以下读取操作同理。
 - 用户可以向缓冲区读取大小为$s_2$大小的数据，并且更新*读指针*$j \to (j + s_2)\operatorname{mod}(n)$。
-- 当$i = j \quad (\operatorname{mod}n)$时候，缓冲区为空。当$j = i + 1 \quad (\operatorname{mod}n)$时， 缓冲区为满。在实际为用户设计读写接口时候需要谨慎地处理以上两种情况。
+- 当 $i = j \quad (\operatorname{mod}n)$ 时候，缓冲区为空。当 $j = i + 1 \quad (\operatorname{mod}n)$ 时， 缓冲区为满。在实际为用户设计读写接口时候需要谨慎地处理以上两种情况。
 
 [^一图胜千言]: 
 
-![Circular_Buffer_Animation](/home/fallengold/Documents/RM2024/Open Source/asset/Circular_Buffer_Animation.gif)
+![Circular_Buffer_Animation](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/Circular_Buffer_Animation.gif)
 
 环形缓冲区提供了一些额外的好处：
 
@@ -330,7 +254,7 @@ struct FrameHeader
 
 #### 算法
 
-1. 用户线程每次写入大小为$s$的数据前，**原子性**地记录当前的写尾指针$j^*_1 = j_1$, ，并立刻更新 $j_1 \to (j_1 + s) \mod{(n)}$。 
+1. 用户线程每次写入大小为$s$的数据前，**原子性**地记录当前的写尾指针 $j^*_1 = j_1$  ，并立刻更新 $j_1 \to (j_1 + s) \mod{(n)}$ 。 
 
 ```cpp
     
@@ -360,9 +284,9 @@ struct FrameHeader
     }
 ```
 
-2. 以$(j^*_1 + 1)\mod{(n)}$为起点向缓冲区写入数据。
+2. 以 $(j^*_1 + 1)\mod{(n)}$为起点向缓冲区写入数据。
 
-3. 写入结束后，如果当前的嵌套变量$N = 0$, 那么更新写头指针$j_2 \to j_1$。
+3. 写入结束后，如果当前的嵌套变量 $N = 0$ , 那么更新写头指针 $j_2 \to j_1$ 。
 
 ```cpp
   
@@ -390,7 +314,7 @@ struct FrameHeader
     }
 ```
 
-4. 在这些过程中，如果DMA传输完成，依照常规更新读指针$i$; 此后如果$i < j_2$，那么立刻发起DMA请求传输$(i, j_2]$ 的数据段； 如果$i = j_2$，此时缓冲区待处理数据大小为$0$； 如果 $i > j_2$, 那么考虑数据被截断的情况，我们发起DMA请求传输 $(i, n - 1]$ 的数据段。
+4. 在这些过程中，如果DMA传输完成，依照常规更新读指针 $i$  ; 此后如果 $i < j_2$，那么立刻发起DMA请求传输 $(i, j_2]$ 的数据段； 如果 $i = j_2$，此时缓冲区待处理数据大小为 $0$； 如果 $i > j_2$ , 那么考虑数据被截断的情况，我们发起DMA请求传输 $(i, n - 1]$ 的数据段。
 
 
 
@@ -475,7 +399,7 @@ void RosManager::txTask(void *pvParameters)
 
 - 缓冲区输入：我们需要将RX DMA配制成环形模式，从而自动实现数据的环形写入，规避了重复进行DMA请求的操作开销。
 
-![RXDMA_Config](/home/fallengold/Documents/RM2024/Open Source/asset/RXDMA_Config.png)
+![RXDMA_Config](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/RXDMA_Config.png)
 
 
 
@@ -557,9 +481,9 @@ void RosManager::rxTask(void *pvParameters)
 
 #### 协议层解包算法
 
+![RX_unpack_diagram.drawio](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/RX_unpack_diagram.drawio.png)
 
 
-![RX_unpack_diagram.drawio](/home/fallengold/Documents/RM2024/Open Source/asset/RX_unpack_diagram.drawio.png)
 
 **代码实现**
 
@@ -730,8 +654,6 @@ void RosManager::rxTimerFunc(TimerHandle_t xTimer)
     }
 }
 ```
-
-
 
 
 
@@ -944,7 +866,7 @@ void startUserTasks()
 
 ##### 下位机接收测试
 
-![experiment_MCU](/home/fallengold/Documents/RM2024/Open Source/asset/experiment_MCU.png)
+![experiment_MCU](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/experiment_MCU.png)
 
 *[0]: 总共收到的数据包数量； [1]: 收到帧头不完整的情况次数 ；[2]: 收到数据段不完整的情况；[3]: 帧头CRC错误；[4]: 整个数据帧CRC错误的情况*
 
@@ -955,7 +877,7 @@ void startUserTasks()
 
 ##### 下位机发送测试
 
-![experiment_host](/home/fallengold/Documents/RM2024/Open Source/asset/experiment_host.png)
+![experiment_host](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/experiment_host.png)
 
 *上位机接收数据帧统计*
 
@@ -972,11 +894,11 @@ void startUserTasks()
 
 以下， 我们用 *SystemView* 去观测下位机模块的任务开销。 
 
-![experiment_systemview](/home/fallengold/Documents/RM2024/Open Source/asset/experiment_systemview.png)
+![experiment_systemview](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/experiment_systemview.png)
 
 *“ros tx/rx task”是模块内部的守护线程，"1""2""3""4"是用户线程， “Sensor”是IMU驱动守护线程*
 
-由以上结果可知，即便在满负荷（单工带宽接近2M）运行的情况下，模块开销依然不高。在考虑SystemView带宽不够会导致观测overflow的情况下， 模块内部开销至多占系统总开销的 $5\%$，$4$ 个用户线程的开销至多在$10\%$左右。在赛场上我们的实际使用带宽远远低于最大带宽，实际占用开销可能就只有 $5\%$左右，可以令人满意。
+由以上结果可知，即便在满负荷（单工带宽接近2M）运行的情况下，模块开销依然不高。在考虑SystemView带宽不够会导致观测overflow的情况下， 模块内部开销至多占系统总开销的 $5\%$，$4$ 个用户线程的开销至多在$10\%$左右。在赛场上我们的实际使用带宽远远低于最大带宽，实际占用开销可能就只有 $5\%$ 左右，可以令人满意。
 
 
 
@@ -992,6 +914,16 @@ void startUserTasks()
 
 
 ## 后记
+
+串口通讯模块虽然简单，但细细品茗，亦感玄妙。俗话说，经济基础决定上层建筑，倘若没有铺建一条稳定的通天信息高速公路，众算法大仙在实践之时亦时刻感到挚肘难以称快。在上个赛季，整个模块的开发远未称得上尽善尽美，且本文著笔仓促，如有谬误，敬请原谅并恳请斧正；若有心得之言，也尽可畅快直叙，致电邮箱 zguobd@connect.ust.hk
+
+感谢上个赛季与我并肩作战的战友们，不论是senior还是junior，没有他们的珍贵建议与齐心协作，这个模块不可能在赛场上得以落地；也感谢其他战队宝贵的嵌入式框架开源，我们从中受益良多。
+
+初心高于胜负。
+
+
+
+
 
 
 
