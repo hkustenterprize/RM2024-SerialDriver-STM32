@@ -4,8 +4,8 @@
 
 
 
-```markdown
-├── asset 								# 文档素材文件
+```shell
+├── asset # 文档素材文件
 │   ├── Circular_Buffer_Animation.gif
 │   ├── config_1.png
 │   ├── config_2.png
@@ -21,10 +21,10 @@
 │   ├── sch_ttl_ch343p.png
 │   ├── UART_diagram.excalidraw
 │   └── UART_diagram.png
-├── Doc									# 开源文档	
+├── Doc	# 开源文档	
 │   ├── serial_driver_MCU_doc.md
 │   └── serial_driver_MCU_doc.pdf
-├── NewRosComm							# 开源文件本体
+├── NewRosComm	# 开源文件本体
 │   ├── NewRosCommConfig.hpp
 │   ├── NewRosComm.cpp
 │   ├── NewRosComm.hpp
@@ -42,6 +42,7 @@
 - `NewRosComm.*`：串口模块的主体部分，为用户调用提供了接口，负责整个模块的流程控制。
 - `NewRosCommProtocol.hpp`：串口模块的协议层， 用户可以在这个文件内部定义新的数据帧格式。
 - `CRC.*` 提供了数据包CRC校验算法的实现与支持。
+- `NewRosCommConfig.hpp` 项目具体参数配置文件。
 
 ## 使用教程
 
@@ -83,9 +84,7 @@ NewRosComm_INC =  \
 -I$(NewRosComm_PATH)/Utils
 ```
 
-此外，该模块需要搭配相应的上位机模块进行通信。请参照我们RM2024的上位机通讯开源：https://github.com/hkustenterprize/RM2024-RosComm
-
-
+此外，该模块需要搭配相应的上位机模块进行通信。请参照我们RM2024的上位机通讯开源：https://github.com/hkustenterprize/RM2024-RosComm 
 
 
 
@@ -96,6 +95,12 @@ NewRosComm_INC =  \
 - 本模块仅在ENTERPRIZE战队的嵌入式开发环境中成功运行，**无法保证**在其他嵌入式环境下的兼容性，开源仅供学习参考而不直接提供现成部署方案。
 
   
+  
+  ## API 文档
+  
+  具体请见模块的代码注释:
+  
+  https://github.com/hkustenterprize/RM2024-SerialDriver-STM32/blob/main/NewRosComm/NewRosComm.hpp
   
   
   

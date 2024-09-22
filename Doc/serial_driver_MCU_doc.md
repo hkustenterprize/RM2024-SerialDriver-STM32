@@ -8,7 +8,7 @@
 
 
 
-## PART II 下位机方案
+## PART II 下位机通讯方案
 
 
 
@@ -47,13 +47,15 @@
 
 在Robomaster 2024的海外赛区及复活赛中，我们在每台机器人上都部署了该通讯方案，并验证了其稳定性。现决定将其开源，以供大家学习点评交流。
 
-**该模块需要与上位机模块搭配使用，详情请移步:...**
+*本模块需要搭配上位机通讯方案使用，详情请见* https://github.com/hkustenterprize/RM2024-RosComm
+
+
 
 ## 芯片电路
 
 ![sch_ttl_ch343p.png](https://github.com/hkustenterprize/RM2024-SerialDriver-STM32/blob/main/asset/sch_ttl_ch343p.png?raw=true)
 
-我们将ACT脚引出，可以接入LED灯来方便查看USB的连接状态。电路设计的时候也将CTS和RTS两个流控脚引出，但我们在实际测试的时候发现流控有概率导致芯片死机且对整个通讯性能提升不显著，所以之后代码中就没有使能这两个引脚。更多关于电路板的设计，可以查看ENTERPRIZE战队G4主控板的开源 https://github.com/hkustenterprize/RM2024-MainControlBoard
+我们将ACT脚引出，可以接入LED灯来方便查看USB的连接状态。电路设计的时候也将CTS和RTS两个流控脚引出，但我们在实际测试的时候发现流控有概率导致芯片死机且对整个通讯性能提升不显著，所以之后代码中就没有使能这两个引脚。欲了解更多关于电路板的设计详情，可以查看ENTERPRIZE战队G4主控板的开源 https://github.com/hkustenterprize/RM2024-MainControlBoard 
 
 ## 基本配置
 
