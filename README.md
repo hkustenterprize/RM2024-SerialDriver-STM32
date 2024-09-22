@@ -5,21 +5,26 @@
 
 
 ```markdown
-├── asset 						## 素材文件
+├── asset 								# 文档素材文件
 │   ├── Circular_Buffer_Animation.gif
+│   ├── config_1.png
+│   ├── config_2.png
+│   ├── config_3.png
 │   ├── experiment_host.png
 │   ├── experiment_MCU.png
 │   ├── experiment_systemview.png
+│   ├── extra_description_2.png
+│   ├── extra_description.png
 │   ├── RXDMA_Config.png
 │   ├── RX_unpack_diagram.drawio
 │   ├── RX_unpack_diagram.drawio.png
 │   ├── sch_ttl_ch343p.png
 │   ├── UART_diagram.excalidraw
 │   └── UART_diagram.png
-├── Doc  						## 开源报告 + 下位机驱动文档
+├── Doc									# 开源文档	
 │   ├── serial_driver_MCU_doc.md
-│   └── UART.pdf
-├── NewRosComm  				## 下位机驱动
+│   └── serial_driver_MCU_doc.pdf
+├── NewRosComm							# 开源文件本体
 │   ├── NewRosCommConfig.hpp
 │   ├── NewRosComm.cpp
 │   ├── NewRosComm.hpp
@@ -30,6 +35,7 @@
 │       ├── CRC.hpp
 │       └── MISOCircularBuffer.hpp
 └── README.md
+
 ```
 
 - `MISOCircularBuffer.hpp`：提供了MISO环形缓冲的实现。
@@ -41,7 +47,9 @@
 
 
 
-本模块使用C++基于OOP的范式进行编写。文件的引用路径已经包含在`NewRosComm.mk`，使用时需要在主`Makefile`文件中手动添加模块的路，定义该模块的根目录`NewRosComm_PATH`，并手动将引用文件 `NewRosComm_INC`与源文件`NewRosComm_PATH_SRC` 路径添加进编译环境里面
+本模块的代码开发基于队伍的 `arm-none-eabi-gcc`工具链，采用 `STM32CUBEMX` 生成项目配置文件。如果要直接使用本模块，用户需要自己下载相关环境。
+
+文件的引用路径已经包含在`NewRosComm.mk`，使用时需要在主`Makefile`文件中手动添加模块的路径，定义该模块的根目录`NewRosComm_PATH`，并手动将引用文件 `NewRosComm_INC`与源文件`NewRosComm_PATH_SRC` 路径添加进编译环境里面
 
 ```makefile
 # Your Makefile
@@ -60,11 +68,11 @@ CPP_SRC += $(NewRosComm_SRC) \
 CPP_INCLUDES += $(NewRosComm_INC) \
 ```
 
-```cpp
+```makefile
 # NewRosComm.mk
 
 # Sources
-NewRosComm_SRC = 
+NewRosComm_SRC = \
 $(NewRosComm_PATH)/NewRosComm.cpp \
 $(NewRosComm_PATH)/Utils/CRC.cpp
 
