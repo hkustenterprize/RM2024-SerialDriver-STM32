@@ -90,7 +90,9 @@
 
   
 
-- *Single Sample* 可开可不开，开了的话将会降低CRC错误率但是提高外设Noise Error的产生率。我们实测开了的话系统的综合表现会有略微的提升。![extra_description_2](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/extra_description_2.png)
+- *Single Sample* 可开可不开，开了的话将会降低CRC错误率但是提高外设Noise Error的产生率。我们实测开了的话系统的综合表现会有略微的提升。
+
+  ![extra_description_2.png](https://github.com/hkustenterprize/RM2024-SerialDriver-STM32/blob/main/asset/extra_description_2.png?raw=true)
 
 ## 模块综述
 
@@ -141,7 +143,7 @@ HAL_StatusTypeDef HAL_UART_Transmit_DMA(UART_HandleTypeDef *huart, const uint8_t
 
 ### 模块简图
 
-![UART_diagram](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/UART_diagram.png)
+![UART_diagram.png](https://github.com/hkustenterprize/RM2024-SerialDriver-STM32/blob/main/asset/UART_diagram.png?raw=true)
 
 
 
@@ -153,14 +155,14 @@ HAL_StatusTypeDef HAL_UART_Transmit_DMA(UART_HandleTypeDef *huart, const uint8_t
 
 具体实现机制可简要的表述如下：
 
-- 初始化一片**定长** $n$ 的内存（数组）作为储存空间， 其有效存储空间为 $n - 1$ 。初始化读写双指针 $i, j$ 为      $-1$ ，为了规范化指针操作，我们规定$i$永远指向最后一位**已经写入**的内存地址，而$j$永远指向最后一位**已经读取**的内存地址。
+- 初始化一片**定长** $n$ 的内存（数组）作为储存空间， 其有效存储空间为 $n - 1$ 。初始化读写双指针 $i, j$ 为      $-1$ ，为了规范化指针操作，我们规定 $i$  永远指向最后一位**已经写入**的内存地址，而 $j$ 永远指向最后一位**已经读取**的内存地址。
 - 用户可以向缓冲区写入大小为 $s_1$ 大小的数据，并且更新*写指针* $i \to (i + s_1) \mod(n) $。注意到我们利用了模运算符来实现了缓冲区“环形”的特性，以下读取操作同理。
-- 用户可以向缓冲区读取大小为 $s_2$ 大小的数据，并且更新*读指针* $j \to (j + s_2)\operatorname{mod}(n)$。
-- 当 $i = j \quad (\operatorname{mod}n)$ 时候，缓冲区为空。当 $j = i + 1 \quad (\operatorname{mod}n)$ 时， 缓冲区为满。在实际为用户设计读写接口时候需要谨慎地处理以上两种情况。
+- 用户可以向缓冲区读取大小为 $s_2$ 大小的数据，并且更新*读指针* $j \to (j + s_2)\mod(n)$。
+- 当 $i = j \quad \mod (n)$ 时候，缓冲区为空。当 $j = i + 1 \quad \mod (n)$ 时， 缓冲区为满。在实际为用户设计读写接口时候需要谨慎地处理以上两种情况。
 
-[^一图胜千言]: 
+[^一图胜千言]: ![Circular_Buffer_Animation.gif](https://github.com/hkustenterprize/RM2024-SerialDriver-STM32/blob/main/asset/Circular_Buffer_Animation.gif?raw=true)
 
-![Circular_Buffer_Animation](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/Circular_Buffer_Animation.gif)
+![Circular_Buffer_Animation](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/Circular_Buffer_Animation.gif
 
 环形缓冲区提供了一些额外的好处：
 
@@ -246,15 +248,15 @@ struct FrameHeader
 | ----- | ---------------------- | ------------------------------------------------------------ |
 | $n$   | 缓冲区大小             | MISO缓冲区的大小。                                           |
 | $i$   | 读指针                 | 当前等待读取的连续的缓冲区首位地址。在DMA传输完成产生中断信号时候进行更新。DMA开始传输的时候， |
-| $j_1$ | 写尾指针               | 一段或多段正在被写入的连续的缓冲区的结尾。任何新开始的写入操作都会调用`enterWrite()`函数且立刻更新该变量如果某线程写入操作没有完成，而来自另一个线程的写入发生，那后者会根据当前$j_1$作为新的本地写入数据的起始点。 |
-| $j_2$ | 写头指针               | 一段或多段正在被写入的连续的缓冲区的开头相对于整片缓冲区的偏移。调用`exitWrite()`的函数表示当前写头指针$j_2$ 指向的，长度为写入的数据区大小的缓冲区已经被写入完成，所有权被释放。这段数据区的状态就从被写入的状态变为待读取的状态。 |
-| $N$   | 正在被写入的数据段数量 | 表示当前缓冲区中有多少个正在处理的写入动作，也表示当前有多少片正在更新的数据写入段。来自任意方的调用`enterWrite()`会为其增加一次计数，相对的， 每次调用`exitWrite()`都会减去一次计数。$N = 0$ 即表示当前缓冲区此时不被任何线程写入。 |
+| $j_1$ | 写尾指针               | 一段或多段正在被写入的连续的缓冲区的结尾。任何新开始的写入操作都会调用`enterWrite()`函数且立刻更新该变量如果某线程写入操作没有完成，而来自另一个线程的写入发生，那后者会根据当前 $j_1$ 作为新的本地写入数据的起始点。 |
+| $j_2$ | 写头指针               | 一段或多段正在被写入的连续的缓冲区的开头相对于整片缓冲区的偏移。调用`exitWrite()`的函数表示当前写头指针 $j_2$ 指向的，长度为写入的数据区大小的缓冲区已经被写入完成，所有权被释放。这段数据区的状态就从被写入的状态变为待读取的状态。 |
+| $N$   | 正在被写入的数据段数量 | 表示当前缓冲区中有多少个正在处理的写入动作，也表示当前有多少片正在更新的数据写入段。来自任意方的调用`enterWrite()`会为其增加一次计数，相对的， 每次调用`exitWrite()`都会减去一次计数。 $N = 0$  即表示当前缓冲区此时不被任何线程写入。 |
 
 
 
 #### 算法
 
-1. 用户线程每次写入大小为$s$的数据前，**原子性**地记录当前的写尾指针 $j^*_1 = j_1$  ，并立刻更新 $j_1 \to (j_1 + s) \mod{(n)}$  。 
+1. 用户线程每次写入大小为 $s$ 的数据前，**原子性**地记录当前的写尾指针 $j^*_1 = j_1$  ，并立刻更新 $j_1 \to (j_1 + s) \mod{(n)}$  。 
 
 ```cpp
     
@@ -399,7 +401,7 @@ void RosManager::txTask(void *pvParameters)
 
 - 缓冲区输入：我们需要将RX DMA配制成环形模式，从而自动实现数据的环形写入，规避了重复进行DMA请求的操作开销。
 
-![RXDMA_Config](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/RXDMA_Config.png)
+![RXDMA_Config.png](https://github.com/hkustenterprize/RM2024-SerialDriver-STM32/blob/main/asset/RXDMA_Config.png?raw=true)
 
 
 
@@ -481,7 +483,7 @@ void RosManager::rxTask(void *pvParameters)
 
 #### 协议层解包算法
 
-![RX_unpack_diagram.drawio](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/RX_unpack_diagram.drawio.png)
+![RX_unpack_diagram.drawio.png](https://github.com/hkustenterprize/RM2024-SerialDriver-STM32/blob/main/asset/RX_unpack_diagram.drawio.png?raw=true)
 
 
 
@@ -866,24 +868,24 @@ void startUserTasks()
 
 ##### 下位机接收测试
 
-![experiment_MCU](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/experiment_MCU.png)
+![experiment_MCU.png](https://github.com/hkustenterprize/RM2024-SerialDriver-STM32/blob/main/asset/experiment_MCU.png?raw=true)
 
 *[0]: 总共收到的数据包数量； [1]: 收到帧头不完整的情况次数 ；[2]: 收到数据段不完整的情况；[3]: 帧头CRC错误；[4]: 整个数据帧CRC错误的情况*
 
-- 总共接收到 $8113356$ 个数据帧， 其中共有 $81$ 个包发生了CRC错误，计算下来CRC错误率为 $0.001\%$，可以基本忽略不计。此外，在整个过程中外设仅仅产生过一次报错的情况$ (rxErrorCounter = 1)$
+- 总共接收到 $8113356$ 个数据帧， 其中共有 $81$ 个包发生了CRC错误，计算下来CRC错误率为 $0.001\%$，可以基本忽略不计。此外，在整个过程中外设仅仅产生过一次报错的情况 $ (rxErrorCounter = 1)$
 - 平均帧接收频率为 $8240 Hz$, 每个数据包如前文所述平均（可能估计不准，忘记为每个收到的包的数量作统计了）大小为 $\frac{16 + 19 + 33 + 13 + 20}{5} = 20.2$ bytes，整个系统有效传输信息量 > $10 \times 20.2 \times 8240 = 1.65M$ bits/s。
 
 
 
 ##### 下位机发送测试
 
-![experiment_host](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/experiment_host.png)
+![experiment_host.png](https://github.com/hkustenterprize/RM2024-SerialDriver-STM32/blob/main/asset/experiment_host.png?raw=true)
 
 *上位机接收数据帧统计*
 
 
 
-- 实际上位机帧接收频率为 $3992Hz$, 基本吻合下位机传输帧的频率。每个数据包大小为 $47$ bytes, 系统有效传输信息量 $ > 3992 \times 47 \times 10 = 1.88 M$ bits/s。
+- 实际上位机帧接收频率为 $3992Hz$, 基本吻合下位机传输帧的频率。每个数据包大小为 $47$ bytes, 系统有效传输信息量  $ > 3992 \times 47 \times 10 = 1.88 M$  bits/s。
 - CRC 错误率为 $0.035\%$, 基本可以忽略不计。
 
 
@@ -894,7 +896,7 @@ void startUserTasks()
 
 以下， 我们用 *SystemView* 去观测下位机模块的任务开销。 
 
-![experiment_systemview](/home/fallengold/Documents/RM2024/Open Source/serial_driver/asset/experiment_systemview.png)
+![experiment_systemview.png](https://github.com/hkustenterprize/RM2024-SerialDriver-STM32/blob/main/asset/experiment_systemview.png?raw=true)
 
 *“ros tx/rx task”是模块内部的守护线程，"1""2""3""4"是用户线程， “Sensor”是IMU驱动守护线程*
 
