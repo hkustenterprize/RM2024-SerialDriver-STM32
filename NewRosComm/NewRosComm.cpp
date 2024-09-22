@@ -5,18 +5,9 @@
 #include "NewRosCommProtocol.hpp"
 #include "string.h"
 
-// TODO
-//// 1. Multiple tx message test, calculate the crc error rate (testing)
-//// 2. Change the decode function into rx task (testing)
-//// 3. rx timeout, tx error
-// 4. Consider a better way to drop package when encountering crc error, like finding the next start bytes.
-
 #if USE_NEW_ROS_COMM
 
-namespace Core
-{
-namespace Communication
-{
+
 namespace RosComm
 {
 
@@ -364,7 +355,6 @@ void RosManager::transmit(FrameHeader &header, uint8_t *data)
         xTaskNotifyGive(txTaskHandle);
 }
 }  // namespace RosComm
-}  // namespace Communication
-}  // namespace Core
+
 
 #endif  // endif for USE_ROS_COMM

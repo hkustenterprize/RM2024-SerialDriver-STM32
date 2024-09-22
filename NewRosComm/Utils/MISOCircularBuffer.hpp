@@ -3,10 +3,7 @@
 #include "string.h"
 #include "task.h"
 
-namespace Core
-{
-namespace Communication
-{
+
 namespace RosComm
 {
 
@@ -217,5 +214,4 @@ class MISOCiruclarBuffer
 };
 
 }  // namespace RosComm
-}  // namespace Communication
-}  // namespace Core
+

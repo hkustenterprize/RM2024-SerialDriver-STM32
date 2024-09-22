@@ -30,7 +30,7 @@
 
 #pragma once
 
-#include "AppConfig.h"
+#include "NewRosCommConfig.h"
 
 #if USE_NEW_ROS_COMM
 

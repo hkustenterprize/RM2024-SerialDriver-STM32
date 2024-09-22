@@ -1,12 +1,9 @@
 #pragma once
-#include "AppConfig.h"
+#include "NewRosCommConfig.h"
 #if USE_NEW_ROS_COMM
 #include <cstdint>
 
-namespace Core
-{
-namespace Communication
-{
+
 namespace RosComm
 {
 
@@ -122,6 +119,5 @@ struct SentryCVCommand
 /*############################### END OF COMMAND ####################################*/
 
 }  // end of namespace RosComm
-}  // end of namespace Communication
-}  // end of namespace Core
+
 #endif

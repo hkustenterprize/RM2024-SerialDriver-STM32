@@ -1,6 +1,100 @@
-# 基于CH343P芯片的下位机高速DMA双工无流控无锁环形缓冲的UART通讯方案
+## RM2024 香港大学ENTERPRIZE战队
+
+----
+
+# 上下位机通讯方案开源
+
+-----
 
 
+
+## PART II 下位机方案
+
+
+
+> 作者: Fallengold (GUO, Zilin); Lawrence Ruan; Zoe Han (Han xinyi)
+>
+> 指导/提议：Li Gaoyang
+>
+> 香港科技大学ENTERPRIZE战队 [robomasterhkust@gmail.com](mailto:robomasterhkust@gmail.com)
+>
+> Github链接：
+>
+> 上位机开源链接：
+
+
+
+## 开源文件结构
+
+
+
+本模块使用C++基于OOP的范式进行编写。文件的引用路径已经包含在`NewRosComm.mk`，使用时需要在主`Makefile`文件中手动添加模块的路，定义该模块的根目录`NewRosComm_PATH`，并手动将引用文件 `NewRosComm_INC`与源文件`NewRosComm_PATH_SRC` 路径添加进编译环境里面
+
+```makefile
+# Your Makefile
+# Define Root directory of the module
+NewRosComm_PATH = $(YOUR_DIR)/NewRosComm
+
+# Include makefile
+include $(NewRosComm_PATH)/NewRosComm.mk
+
+# ...
+# Append source files
+CPP_SRC += $(NewRosComm_SRC) \
+# ...
+
+# Append include path
+CPP_INCLUDES += $(NewRosComm_INC) \
+
+```
+
+```cpp
+# NewRosComm.mk
+
+# Sources
+NewRosComm_SRC = 
+$(NewRosComm_PATH)/NewRosComm.cpp \
+$(NewRosComm_PATH)/Utils/CRC.cpp
+
+
+# Includes
+NewRosComm_INC =  \
+-I$(NewRosComm_PATH) \
+-I$(NewRosComm_PATH)/Utils
+```
+
+
+
+**-注意事项-**
+
+- 本模块依赖于 `FreeRTOS` 提供的内核支持以及C标准库。如果直接使用本模块，请手动将`FreeRTOS` 与C标准库添加至编译环境中，本模块并不包含该环境。
+
+- 本模块仅在ENTERPRIZE战队的嵌入式开发环境中成功运行，**无法保证**在其他嵌入式环境下的兼容性，开源仅供学习参考而不直接提供现成部署方案。
+
+  
+
+#### 文件树
+
+```
+NewRosComm/
+|--- NewRosComm.cpp
+|--- NewRosComm.hpp
+|--- NewRosCommProtocol.hpp
+|--- NewRosCommConfig.hpp
+|--- NewRosComm.mk
+|--- Utils/
+    |--- CRC.hpp
+    |--- CRC.cpp
+    |--- MISOCircularBuffer.hpp
+```
+
+- `MISOCircularBuffer.hpp`：提供了MISO环形缓冲的实现。
+
+- `NewRosComm.*`：串口模块的主体部分，为用户调用提供了接口，负责整个模块的流程控制。
+
+- `NewRosCommProtocol.hpp`：串口模块的协议层， 用户可以在这个文件内部定义新的数据帧格式。
+
+- `CRC.*` 提供了数据包CRC校验算法的实现与支持。
 
 ## 前言
 
@@ -25,11 +119,54 @@
 
 在Robomaster 2024的海外赛区及复活赛中，我们在每台机器人上都部署了该通讯方案，并验证了其稳定性。现决定将其开源，以供大家学习点评交流。
 
-## 供电电路
+**该模块需要与上位机模块搭配使用，详情请移步:...**
+
+## 芯片电路
+
+![alt text](https://github.com/hkustenterprize/RM2024-MainControlBoard/raw/main/image/sch_ttl_ch343p.png)
+
+我们将ACT脚引出，可以接入LED灯来方便查看USB的连接状态。电路设计的时候也将CTS和RTS两个流控脚引出，但我们在实际测试的时候发现流控有概率导致芯片死机且对整个通讯性能提升不显著，所以之后代码中就没有使能这两个引脚。更多关于电路板的设计，可以查看ENTERPRIZE战队G4主控板的开源 https://github.com/hkustenterprize/RM2024-MainControlBoard
 
 ## 基本配置
 
 本模块的部署环境为自研的STM32F407VE和STM32G473VE两款开发板，在STM32CUBEMX中的配置如下。
+
+#### UART - USB - TTL 参数配置
+
+- 无CTS、RTS流控
+- 波特率2M bits/s
+- Oversampling = 16
+- Single Sample = 1
+- 无校验位
+- Stop bits  = 2
+- 数据位8bits
+
+
+
+#### DMA 配置
+
+- TX DMA： 普通模式；bytes对齐
+- RX DMA： 环形模式；bytes对齐
+
+![image-20240922173403209](/home/fallengold/.config/Typora/typora-user-images/image-20240922173403209.png)
+
+
+
+![image-20240922173443144](/home/fallengold/.config/Typora/typora-user-images/image-20240922173443144.png)
+
+![image-20240922173454427](/home/fallengold/.config/Typora/typora-user-images/image-20240922173454427.png)
+
+
+
+#### 一些额外说明
+
+- 如果有条件，尽量要开 *16 bits oversampling* 。官方文档显示，*oversampling*值越低，采样速率越高，但是对时钟的差异敏感越大。考虑到CH343P与G4芯片之间无时钟线同步时钟，采用的异步同步方法，我们理应选用 *16 bits oversampling。*这也与线下调试的实验结果相符合。
+
+  ![img](https://cdn.discordapp.com/attachments/1097013077796462612/1249990871928147998/image.png?ex=66f11ab7&is=66efc937&hm=2db58cb70afd993fac3555c519220b18a3dfc09c108e16cc5839ab84df59c5ff&=)
+
+- *Single Sample* 可开可不开，开了的话将会降低CRC错误率但是提高外设Noise Error的产生率。我们实测开了的话系统的综合表现会有略微的提升。
+
+![img](https://cdn.discordapp.com/attachments/1097013077796462612/1249991531188977775/image.png?ex=66f11b54&is=66efc9d4&hm=03653150891c4cb61b8e59f494d2f744bdab4476998f4f05c80d9cbd29fab57a&)
 
 ## 模块综述
 
@@ -63,7 +200,7 @@ HAL_StatusTypeDef HAL_UARTEx_ReceiveToIdle_DMA(UART_HandleTypeDef *huart, uint8_
   * @param huart UART handle.
   * @param pData Pointer to data buffer (u8 or u16 data elements).
   * @param Size  Amount of data elements (u8 or u16) to be sent.
-  * @retval HAL status已经读取
+  * @retval HAL status
   */
 HAL_StatusTypeDef HAL_UART_Transmit_DMA(UART_HandleTypeDef *huart, const uint8_t *pData, uint16_t Size)；
  
@@ -114,23 +251,48 @@ HAL_StatusTypeDef HAL_UART_Transmit_DMA(UART_HandleTypeDef *huart, const uint8_t
 
 以上概念大多被广泛的运用在控制论上(Control Theory)用来描述系统的特性。 然而，我们也可以意识到，用这些概念描述环形缓冲区乃大有裨益——有的环形缓冲区只需要支持单来源的用户写入，而有的环形缓冲区则可能需要支持多来源的用户输入，而实现这些不同特性的代码可能大相径庭。
 
-### 模块文件结构
 
-本模块使用C++基于OOP的范式进行编写。
 
+### 协议层
+
+协议层的数据帧依从裁判系统数据帧范式：
+
+| 名称             | 数据段大小（bytes） | 数据帧偏移量 |
+| ---------------- | ------------------- | ------------ |
+| 帧头             | 3                   | 0            |
+| 帧头CRC16        | 2                   | 3            |
+| 用户自定义数据段 | x                   | 5            |
+| CRC16            | 2                   | 5 + x        |
+
+#### 帧头
+
+```cpp
+/**
+* @File NewRosCommProtocal
+*/
+
+struct FrameHeader
+{
+    uint8_t sof        = START_BYTE;
+    uint8_t dataLen    = 0;
+    uint8_t protocolID = 0;
+    // uint16_t crc16;
+} __attribute__((packed))
 ```
-NewRosComm/
-|--- MISOCircularBuffer.hpp
-|--- NewRosComm.cpp
-|--- NewRosComm.hpp
-|--- NewRosCommProtocol.hpp
-```
 
-- `MISOCircularBuffer.hpp`：提供了MISO环形缓冲的实现。
 
-- `NewRosComm.*`：串口模块的主体部分，为用户调用提供了接口，负责整个模块的流程控制。
 
-- `NewRosCommProtocol.hpp`：串口模块的协议层， 用户可以在这个文件内部定义新的数据帧格式。
+| 名称                              | 数据段大小（bytes) | 偏移量 |
+| :-------------------------------- | ------------------ | ------ |
+| 起始位                            | 1                  | 0      |
+| 数据段长度（不含帧头和CRC校验位） | 1                  | 1      |
+| 数据帧ID                          | 1                  | 2      |
+| CRC16                             | 2                  | 3      |
+|                                   |                    |        |
+
+*在数据帧末尾有必要进行CRC校验。如果没有这一步，在解包的时候便有几率使用错误的“数据段长度”信息， 从而会造成数组越界等严峻后果。*
+
+
 
 ### 发送模块
 
@@ -138,229 +300,15 @@ NewRosComm/
 
 发送模块内蕴一个环形缓冲区，接受来自**多个**用户线程的写入与TX DMA的读取，因而，这个缓冲区是*MISO*的。前文已经叙述， 环形缓冲区天然对*SISO*的操作提供了无锁支持，然而在*MISO*的条件下，不同的用户线程之间对缓冲区的占用存在竞争。设想情况如下—— 线程A正在向缓冲区写入数据， 而此时操作系统的上下文被SysTick触发被转交给了线程B，而恰好线程B亦试图写入数据，由于此时线程A还来不及更新写指针，因而线程B的写入数据将会覆写线程A的写入区域，造成整片缓冲区被污染的不快后果。
 
-解决这个问题的最直接的方法便是为环形缓冲区赋予一个互斥锁（Mutex），将缓冲区视为一个独占资源，每当一个线程试图访问一个被其他线程占有的缓冲区资源，直到这个缓冲区的独占权被占有的线程释放， 这个线程都会被操作系统阻塞。然而，如果程序中存在大量访问同一个缓冲区的线程，这个过程将会产生大量操作系统的上下文切换，单片机的算力本就紧张，这些额外的性能开销虽然不致命但是足以令人不快。另一个容易想到的办法便是将整个写入的操作声明为原子操作，禁止所有的上下文切换，这虽然可以规避互斥锁所带来的额外的调度开销，然而缺点亦显而易见—— 由于写入内存的操作的用时开销较大，系统便会长时间地处于原子屏蔽的状态中，操作系统的实时性也会因此降低。
+解决这个问题的最直接的方法便是为环形缓冲区赋予一个互斥锁（Mutex），将缓冲区视为一个独占资源，每当一个线程试图访问一个被其他线程占有的缓冲区资源，直到这个缓冲区的独占权被占有的线程释放， 这个线程都会被操作系统阻塞。然而，如果程序中存在大量访问同一个缓冲区的线程，这个过程将会产生大量操作系统的上下文切换，单片机的算力本就紧张，这些额外的性能开销虽然不致命但是足以令人不快。另一个容易想到的办法便是将整个写入的操作声明为原子操作，禁止所有的上下文切换，这虽然可以规避互斥锁所带来的额外的调度开销，然而缺点亦显而易见—— 由于写入内存的操作的用时开销较大，系统便会长时间地处于原子屏蔽的状态中，实时性也会因此降低。
 
 本文提出了另外一种替代方案，通过巧妙地设置一些标志位成功地降低了原子操作的开销，同时亦能规避使用互斥锁。
 
-至于读取部分，由于我们可以认为访问这片缓冲区的DMA通道只有一个，因此不必对这种单读取的情况进行额外的流程控制。
+至于读取部分，由于我们可以认为访问这片缓冲区的DMA通道只有一个，因此不必对这种单读取的情况进行额外的流程控制。每当一次DMA传输结束后且检测到当前的缓冲区内汤有存在待处理数据段，就会在中断中产生一个信号量以提醒发送任务发起下一次DMA请求。
+
+
 
 #### 程序解析
-
-```c++
-/**
-/*	@File MISOCircularBuffer.hpp
- */
-
-/**
- * @brief Realization of the MISO circular buffer.
- * @tparam tpSize: The size of the buffer
- */
-template <uint16_t tpSize>
-class MISOCiruclarBuffer
-{
-   public:
-    MISOCiruclarBuffer() = default;
-
-    constexpr static uint16_t MISO_BUFFER_SIZE = tpSize;
-
-    /**
-     * @brief Before writing data into the buffer, the caller should call this function
-     * This process will update the tail read index and increment the nested number by 1
-     * @param len: The length of the buffer to be written into the buffer
-     * @note The atmoic operation is needed in order to
-     */
-
-    uint8_t *enterWrite(uint16_t len)
-    {
-        uint8_t *ptr;
-        ATOMIC_ENTER_CRITICAL();
-        {
-            ptr = buffer + (wIndexTail + 1) % MISO_BUFFER_SIZE;
-            wNestedNum++;
-            wIndexTail = (wIndexTail + len) % MISO_BUFFER_SIZE;
-        }
-        ATOMIC_EXIT_CRITICAL();
-        return ptr;
-    }
-
-    /**
-     * @brief Atomically write the data into the buffer given the address and the length
-     * @param pData The start address of the data to be written
-     * @param len The length of the data to be written
-     */
-
-    bool write(uint8_t *pData, uint16_t len)
-    {
-        bool status = false;
-        uint16_t availableSize;
-
-        ATOMIC_ENTER_CRITICAL();
-        {
-            availableSize = MISO_BUFFER_SIZE - pendingSize;
-        }
-        ATOMIC_EXIT_CRITICAL();
-
-        if (len > availableSize)
-        {
-            return status;
-        }
-
-        uint8_t *ptr           = this->enterWrite(len);
-        uint32_t firstPartSize = (MISO_BUFFER_SIZE - ((uint32_t)ptr - (uint32_t)buffer));
-
-        if (len > firstPartSize)
-        {
-            memcpy(ptr, pData, firstPartSize);
-            memcpy(buffer, pData + firstPartSize, len - firstPartSize);
-        }
-        else
-        {
-            memcpy(ptr, pData, len);
-        }
-
-        this->exitWrite();
-        status = true;
-        return status;
-    }
-
-    /**
-     * @brief After finish writing the data, the caller should called this function to exit its writing process
-     * This process will update the head read index and decrement the nested number
-     */
-
-    void exitWrite()
-    {
-        ATOMIC_ENTER_CRITICAL();
-        {
-            wNestedNum--;
-            if (wNestedNum == 0)
-            {
-                wIndexHead  = wIndexTail;
-                pendingSize = (wIndexHead - rIndex + MISO_BUFFER_SIZE) % MISO_BUFFER_SIZE;
-            }
-        }
-        ATOMIC_EXIT_CRITICAL();
-    }
-    /**
-     * @brief Before reading the data, the reader should call this function to initialize the read process
-     * @brief This function would increatment the reading nested number by 1 and verify that currently any other is occupying the buffer.
-     * @param len The length of the data section to be written
-     * @return Suppose the reading is valid, it will return the next readable data section's address, otherwise it would return nullptr
-     */
-    uint8_t *enterRead(uint16_t len)
-    {
-        uint8_t *ptr;
-
-        ATOMIC_ENTER_CRITICAL();
-        {
-            if (rNestedNum > 0 || pendingSize == 0)
-            {
-                ptr = nullptr;
-            }
-
-            else
-            {
-                readNum = len;
-                ptr     = buffer + (rIndex + 1) % MISO_BUFFER_SIZE;
-            }
-            rNestedNum++;
-        }
-        ATOMIC_EXIT_CRITICAL();
-        return ptr;
-    }
-
-    /**
-     * @brief After reading the data, the reader should call this function to release the buffer in thread
-     * @brief This function would update the read index and decrement the number by 1
-     */
-    void exitRead()
-    {
-        ATOMIC_ENTER_CRITICAL();
-        {
-            rIndex      = (rIndex + readNum) % MISO_BUFFER_SIZE;
-            pendingSize = (wIndexTail - rIndex + MISO_BUFFER_SIZE) % MISO_BUFFER_SIZE;
-            rNestedNum--;
-            readNum = 0;
-        }
-        ATOMIC_EXIT_CRITICAL();
-    }
-    /**
-     * @brief After reading the data, the reader should call this function to release the buffer in interrupt routine
-     * @brief This function would update the read index and decrement the number by 1
-     */
-    void exitReadFromISR()
-    {
-        BaseType_t interruptMask = taskENTER_CRITICAL_FROM_ISR();
-        {
-            rIndex      = (rIndex + readNum) % MISO_BUFFER_SIZE;
-            pendingSize = (wIndexTail - rIndex + MISO_BUFFER_SIZE) % MISO_BUFFER_SIZE;
-            rNestedNum--;
-            readNum = 0;
-        }
-        taskEXIT_CRITICAL_FROM_ISR(interruptMask);
-    }
-
-    /**
-     * @brief Get the number of bytes in the buffer pending for reading
-     * @return The bytes number
-     */
-    uint16_t getNextAvailableReadSize() const { return pendingSize; }
-
-    /**
-     * @brief Get the number of bytes in the buffer pending for reading considering the discontiniuty in memory address
-     * @brief Mainly provide by DMA operating in normal mode
-     * @return The bytes number
-     */
-    uint16_t getNextAvailableReadSizeNoCircular()
-    {
-        uint16_t size;
-        ATOMIC_ENTER_CRITICAL();
-        {
-            if (wIndexHead < rIndex && rIndex < MISO_BUFFER_SIZE - 1)
-            {
-                size = MISO_BUFFER_SIZE - rIndex - 1;
-            }
-            else
-            {
-                size = pendingSize;
-            }
-        }
-        ATOMIC_EXIT_CRITICAL();
-        return size;
-    }
-
-    uint16_t getWriteNestedNum() { return wNestedNum; }
-
-    uint16_t getReadNestedNum() { return rNestedNum; }
-
-   private:
-    /*Memory storage space for the whole buffer*/
-    uint8_t buffer[MISO_BUFFER_SIZE] = {0};
-    /*Writing tail index*/
-    // This index denotes the farest position that the coroutines have declared to write
-    // Update when the routine calls "enterWrite()"
-    int16_t wIndexTail = -1;
-
-    /*Write head index*/
-    // This index denotes the position that the coroutines have finished to write
-    // Update when the routine calls "exitWrite()"
-    int16_t wIndexHead = -1;
-
-    /*Read index*/
-    // This index denotes the position that the courtines have finished to read
-    // Update when the routine calls "enterRead()"
-    int16_t rIndex = -1;
-
-    uint16_t readNum = 0;
-
-    /*Write nested number*/
-    // This number indicated the nested status of the read operation over the buffer,
-    // which means how many routines are now reading the buffer.
-    uint16_t wNestedNum  = 0;
-    uint16_t rNestedNum  = 0;
-    uint16_t pendingSize = 0;
-};
-```
 
 如前文所述，管理发送缓冲区的痛点即为在正确地处理**多个**用户的写入同时降低系统的开销（线程阻塞、内存拷贝等）。本模块在继承了经典的环形缓冲区的结构之上，将 *写指针*拆分为 `wIndenTail` *(尾写指针)* 与 `wIndexHead` *头写指针*。 维护算法可以简单描述如下：
 
@@ -382,12 +330,16 @@ class MISOCiruclarBuffer
 
 #### 算法
 
-
-
 1. 用户线程每次写入大小为$s$的数据前，**原子性**地记录当前的写尾指针$j^*_1 = j_1$, ，并立刻更新 $j_1 \to (j_1 + s) \mod{(n)}$。 
 
 ```cpp
-    /**
+    
+/**
+* @File: MISOCircularBuffer.hpp
+*/ 
+
+
+	/**
      * @brief Before writing data into the buffer, the caller should call this 			function
      * This process will update the tail read index and increment the nested number 		by 1
      * @param len: The length of the buffer to be written into the buffer
@@ -413,7 +365,12 @@ class MISOCiruclarBuffer
 3. 写入结束后，如果当前的嵌套变量$N = 0$, 那么更新写头指针$j_2 \to j_1$。
 
 ```cpp
-    /**
+  
+/**
+* @File: MISOCircularBuffer.hpp
+*/
+
+	/**
      * @brief After finish writing the data, the caller should called this function 	to exit its writing process
      * This process will update the head read index and decrement the nested number
      */
@@ -506,37 +463,535 @@ void RosManager::txTask(void *pvParameters)
 }
 ```
 
-
-
-
-
-##### 原子性分析
-
-为什么
-
-
-
-
-
-
-
-
-
 ### 接收模块 
 
+#### 简述
+
+接收模块包含一个环形DMA、一块环形环形缓冲区以及相应的管理机制。不同于发送模块， 接收模块的缓冲区仅接收来自单个环形DMA的写入以及接收模块管理下的读取。 因而，这个模块是 *SISO* 的，除了实现环形缓冲区本身的特性之外不需要针对多输入或者多输出做出额外的处理，在驱动层面的原理相对简单。本模块主要的创新点在于在 **协议层** 上实现了一种高效通用的解包机制，不仅能够正确区分接收的数据包的异常情况，还保证了绝对意义上的0丢包率（即上位机无论： 1. 在什么时候 2. 发什么包 3. 发的包是否破碎还是粘连，都可以正确的处理这些数据包并通知相应的用户线程）。
+
+
+
+#### 驱动层配置与设计
+
+- 缓冲区输入：我们需要将RX DMA配制成环形模式，从而自动实现数据的环形写入，规避了重复进行DMA请求的操作开销。
+
+![RXDMA_Config](/home/fallengold/Documents/RM2024/Open Source/asset/RXDMA_Config.png)
+
+
+
+- 在初始化模块的时候，我们需要打开 UART 的IDLE中断、DMA的全满中断以及DMA的半满中断。
+
+```cpp
+/*
+* @File: NewRosComm.cpp
+*/
+
+void RosManager::init()
+{
+    //...//
+    // Start the RX DMA reception event.
+    // The hal library will automatically enable the DMA half complete interrupt , DMA full complete interrupt and UART idle-line interrupt.
+    configASSERT(HAL_UARTEx_ReceiveToIdle_DMA(huart, rosRxCircularBuff, NEW_ROS_RX_BUF_SIZE) == HAL_OK);
+    //...//
+}
+```
+
+当缓冲区写入了一定数据并产生了任意中断事件后，模块内部的接收事件回调函数便会更新环形缓冲区的写指针`RosManager::rxWIndex`，并且产生一个信号量通知守护线程`rxTask()`进行解包，该线程同时负责将有效信息以**回调函数**的方式告知用户线程。
+
+
+
+```cpp
+/**
+ * @File: NewRosComm.cpp
+ */ 
+
+
+void RosManager::rxCallback(UART_HandleTypeDef *handle, uint16_t size)
+{
+    // traceISR_ENTER();
+    RosManager *pManager                = getManager(handle);
+    uint16_t wPtr                       = (size - 1 + NEW_ROS_RX_BUF_SIZE) % NEW_ROS_RX_BUF_SIZE;
+    pManager->rxWIndex                  = wPtr;
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    vTaskNotifyGiveFromISR(pManager->rxTaskHandle, &xHigherPriorityTaskWoken);
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+    // traceISR_EXIT();
+}
+
+// .. //
+
+void RosManager::rxTask(void *pvParameters)
+{
+    RosManager *pManager = (RosManager *)pvParameters;
+    EPackageStatus packageState;
+
+    while (true)
+    {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        packageState = ePackageComplete;
+        while ((pManager->rxSize = pManager->rxBufferPendingBytes()) && packageState != ePackageHeaderIncomplete &&
+               packageState != ePackagePayLoadIncomplete)
+        {
+            packageState = pManager->updateAndGetNextFrame();
+            if (packageState == ePackageComplete)
+            {
+                pManager->connected         = true;
+                pManager->disConnectCounter = 0;
+                uint8_t protocolID          = pManager->rxFrameBuffer.frame.header.protocolID;
+                uint16_t len                = pManager->rxFrameBuffer.frame.header.dataLen;
+                for (uint8_t j = 0; j < pManager->frameCallbackCounter; j++)
+                {
+                    if (pManager->callbackTable[j].id != protocolID)
+                        continue;
+                    pManager->callbackTable[j].func(pManager->rxFrameBuffer.frame.payLoadCRC16, len, pManager->huart);
+                }
+            }
+// Debug
+// ...
+        }
+    }
+}
+```
+
+
+
+#### 协议层解包算法
+
+
+
+![RX_unpack_diagram.drawio](/home/fallengold/Documents/RM2024/Open Source/asset/RX_unpack_diagram.drawio.png)
+
+**代码实现**
+
+每次调用一次解包函数，都会返回一个解包状态。其声明为如下：
+
+```cpp
+/**
+/* @File: NewRosComm.hpp
+*/ 
+
+// Package status
+// For every call on updateAnGetNextFrame, the function will try to decode a package, and return the status of the package
+enum EPackageStatus
+{
+    ePackageComplete = 0, 		// The next package is complete
+    ePackageHeaderIncomplete,   // The header of the next pacakge is incomplete
+    ePackagePayLoadIncomplete, 	// The payload of the next pacakge is incomplete
+    ePackageHeaderCRCError, 	// The header of the next package has a CRC error
+    ePackageCRCError, 			// The next total package has a CRC error
+    ePackageStateCount 		    // Enum variables counter
+};
+```
+
+每当`RosManager::TxTask()`这个线程接收到了一次信号量，就会持续调用解包函数 `RosManager::updateAndGetNextFrame()` 直到缓冲区内数据残缺，在这个过程中持续更新 缓冲区内的读指针`RosManager::rxRIndex` 以及缓冲区内剩余数据的大小`RosManager::rxSize`  。
+
+```cpp
+/**
+ * @File NewRosComm.cpp
+ */
+
+RosManager::EPackageStatus RosManager::updateAndGetNextFrame()
+{
+    uint16_t size                               = this->rxSize;
+    static constexpr uint16_t CRC16_SIZE        = 2;
+    static constexpr uint16_t HEADER_CRC16_SIZE = sizeof(FrameHeader) + CRC16_SIZE;
+
+    // Find the start byte
+    uint16_t rPtr = this->rxRIndex;
+    while (size > HEADER_CRC16_SIZE)
+    {
+        rPtr = (rPtr + 1) % NEW_ROS_RX_BUF_SIZE;
+        if (rosRxCircularBuff[rPtr] == RosComm::START_BYTE)
+        {
+            break;
+        }
+        size--;
+    }
+
+    // Verify the completeness of the potential header
+    if (size <= HEADER_CRC16_SIZE)
+    {
+        this->rxRIndex = (rPtr - 1 + NEW_ROS_RX_BUF_SIZE) % NEW_ROS_RX_BUF_SIZE;  // START_BYTES - 1
+        return ePackageHeaderIncomplete;
+    }
+
+    // Copy the buffer into the header
+    if (rPtr + HEADER_CRC16_SIZE <= NEW_ROS_RX_BUF_SIZE)
+    {
+        memcpy(rxFrameBuffer.array, &rosRxCircularBuff[rPtr], HEADER_CRC16_SIZE);
+    }
+    else
+    {
+        uint16_t firstPartSize = NEW_ROS_RX_BUF_SIZE - rPtr;
+        memcpy(rxFrameBuffer.array, &rosRxCircularBuff[rPtr], firstPartSize);
+        memcpy(rxFrameBuffer.array + firstPartSize, rosRxCircularBuff, HEADER_CRC16_SIZE - firstPartSize);
+    }
+    size -= HEADER_CRC16_SIZE;
+    rPtr = (rPtr + HEADER_CRC16_SIZE) % NEW_ROS_RX_BUF_SIZE;
+
+    // Verify the Header CRC
+    if (!Crc::verifyCRC16CheckSum(rxFrameBuffer.array, HEADER_CRC16_SIZE))
+    {
+        this->rxRIndex = (rPtr - 1 + NEW_ROS_RX_BUF_SIZE) % NEW_ROS_RX_BUF_SIZE;
+        return ePackageHeaderCRCError;
+    }
+
+    // Read the payload length from the header
+    uint16_t payLoadLen = rxFrameBuffer.frame.header.dataLen;
+    if (payLoadLen > NEW_ROS_MAX_PACKAGE_SIZE)
+    {
+        this->rxRIndex = (rPtr - 1 + NEW_ROS_RX_BUF_SIZE) % NEW_ROS_RX_BUF_SIZE;
+        return ePackageHeaderCRCError;
+    }
+
+    // Verify the completeness of the potential payload
+    if (size < payLoadLen + CRC16_SIZE)
+    {
+        this->rxRIndex = (rPtr - HEADER_CRC16_SIZE - 1 + NEW_ROS_RX_BUF_SIZE) % NEW_ROS_RX_BUF_SIZE;  // Start bytes
+        return ePackagePayLoadIncomplete;
+    }
+
+    // Copy the payload and 16CRC into the buffer
+    if (rPtr + payLoadLen + CRC16_SIZE <= NEW_ROS_RX_BUF_SIZE)
+    {
+        memcpy(rxFrameBuffer.frame.payLoadCRC16, &rosRxCircularBuff[rPtr], payLoadLen + CRC16_SIZE);
+    }
+    else
+    {
+        uint16_t firstPartSize = NEW_ROS_RX_BUF_SIZE - rPtr;
+        memcpy(rxFrameBuffer.frame.payLoadCRC16, &rosRxCircularBuff[rPtr], firstPartSize);
+        memcpy(rxFrameBuffer.frame.payLoadCRC16 + firstPartSize, rosRxCircularBuff, payLoadLen + CRC16_SIZE - firstPartSize);
+    }
+    rPtr = (rPtr + payLoadLen + CRC16_SIZE) % NEW_ROS_RX_BUF_SIZE;
+
+    // Verify the payload CRC
+    if (!Crc::verifyCRC16CheckSum(rxFrameBuffer.array, HEADER_CRC16_SIZE + payLoadLen + CRC16_SIZE))
+    {
+        this->rxRIndex = (rPtr - 1 + NEW_ROS_RX_BUF_SIZE) % NEW_ROS_RX_BUF_SIZE;
+        return ePackageCRCError;
+    }
+
+    // CHEERS! The package is complete
+    this->rxRIndex = (rPtr - 1 + NEW_ROS_RX_BUF_SIZE) % NEW_ROS_RX_BUF_SIZE;
+    return ePackageComplete;
+}
+```
+
+### 错误处理
+
+虽然理论上环形DMA的请求在整个程序的生命周期内只需要调用一次，但是如果系统运行过程中外设产生了Frame Error以及Noise Error等错误，整个DMA传输便会被终止。
+
+因此，我们需要注册一个错误处理回调函数，在发生错误的时候重启DMA。
+
+```cpp
+/**
+ * @File NewRosComm.cpp
+ */
+
+void RosManager::rxErrorCallback(UART_HandleTypeDef *handle)
+{
+    RosManager *pManager     = getManager(handle);
+    BaseType_t interruptMask = pdFALSE;
+    interruptMask            = taskENTER_CRITICAL_FROM_ISR();
+    {
+        HAL_UART_AbortReceive(handle);
+        HAL_UARTEx_ReceiveToIdle_DMA(handle, pManager->rosRxCircularBuff, NEW_ROS_RX_BUF_SIZE);
+        pManager->rxRIndex = pManager->rxWIndex = -1;
+#if USE_DEBUG
+        pManager->rxErrorCounter++;
+#endif
+    }
+    taskEXIT_CRITICAL_FROM_ISR(interruptMask);
+}
+```
+
+此外，我们也可以多添加一个守护计时器，当检测到长时间没有收到数据帧的时候重启刷新DMA。
+
+```cpp
+void RosManager::rxTimerFunc(TimerHandle_t xTimer)
+{
+    RosManager *pManager = (RosManager *)(pvTimerGetTimerID(xTimer));
+    bool lastConnected   = pManager->connected;
+    if (++pManager->disConnectCounter > NEW_ROS_RX_TIMEOUT)
+    {
+        pManager->connected         = false;
+        pManager->disConnectCounter = NEW_ROS_RX_TIMEOUT;
+    }
+
+    if (lastConnected && not pManager->connected)
+    {
+        ATOMIC_ENTER_CRITICAL();
+        {
+            HAL_UART_AbortReceive(pManager->huart);
+            HAL_UARTEx_ReceiveToIdle_DMA(pManager->huart, pManager->rosRxCircularBuff, NEW_ROS_RX_BUF_SIZE);
+            pManager->rxRIndex = pManager->rxWIndex = -1;
+        }
+        ATOMIC_EXIT_CRITICAL();
+    }
+}
+```
 
 
 
 
-### 协议层
+
+## 实验结果与分析
 
 
 
+为了验证该通讯模块双工通讯的有效性，我们对其进行了超负荷测试。实验结果显示出该模块可以以接近2M的与波特率相近的速率进行准确的信息接收与发送，将丢包情况压缩到了最低。
+
+### 实验步骤
 
 
 
+#### 测试平台
+
+- 开发板：基于香港科技大学ENTERPRIZE的STM32G473VE开发板，MCU主频高达170MHz，详情请见香港科技大学ENTERPRIZE战队的主控板开源报告。
+- USB-TTL转换芯片： 板载南京沁恒微电子有限公司生产的CH343P 芯片
+- 上位机：Intel NUC i5，接收发送线程运行于ROS2操作系统的节点上
 
 
+
+#### UART - USB - TTL 参数配置
+
+- 无CTS、RTS流控
+- 波特率2M bits/s
+- Oversampling = 16
+- Single Sample = 1
+- 无校验位
+- Stop bits  = 2
+- 数据位8bits
+
+
+
+#### 测试方法
+
+- 上位机： 在同一个 `serialDriverNode` 里面开启收发双线程：
+  - 发送线程： 订阅来自 $5$ 个 用户节点的数据帧，每个节点以 $1000 Hz$ 的频率发布两个数据帧 （共有 $5$ 种数据帧，大小分别为 $16, 19, 13, 33, 20$ bytes）。
+  - 接收线程： 调用 Linux 底层的 `read()`函数进行串口缓冲区读取 -> 解码数据包 -> 发布数据包（数据段会随机改变）
+- 下位机： 
+  - 发送线程：设置 $4$ 个发送用户线程，调用`NewRosComm` API， 每个线程每毫秒传输 $1$ 个数据包（总共大小 $47$ bytes，包含实时IMU 数据，数据值会随机变化）
+  - 接收线程：模块内部统一管理。
+
+
+
+将代码测试代码烧录后，静置 1.5 个小时，之后统计CRC错误率与丢失率。
+
+
+
+**下位机测试代码**
+
+```cpp
+#include "FreeRTOS.h"
+#include "IMU.hpp"
+#include "NewRosComm.hpp"
+#include "gpio.h"
+#include "main.h"
+#include "random"
+#include "task.h"
+#include "usart.h"
+
+StackType_t uxSendRosMessageStack[4][1024];
+StaticTask_t xSendRosMessageTCB[4];
+using namespace Core::Communication;
+using namespace Core::Drivers;
+
+// RosComm::FrameHeader header1 = {RosComm::START_BYTE, sizeof(RosComm::SentryGimbalMsg), RosComm::SENTRY_GIMBAL_MSG};
+// RosComm::FrameHeader header2 = {RosComm::START_BYTE, sizeof(RosComm::GimbalIMU), RosComm::GimbalIMU};
+// RosComm::FrameHeader header3 = {RosComm::START_BYTE, sizeof(RosComm::ChassisIMU), RosComm::ChassisIMU};
+// RosComm::FrameHeader header4 = {RosComm::START_BYTE, sizeof(RosComm::RefereeState), RosComm::ROBOT_SURVIVAL_MSG};
+// RosComm::FrameHeader header1 = {RosComm::START_BYTE, sizeof(RosComm::GimbalMsg), RosComm::GIMBAL_MSG};
+RosComm::FrameHeader header2 = {RosComm::START_BYTE, sizeof(RosComm::SentryGimbalMsg), RosComm::TWOCRC_SENTRY_GIMBAL_MSG};
+RosComm::SentryGimbalMsg sentryGimbalStatus1;
+RosComm::SentryGimbalMsg sentryGimbalStatus2;
+RosComm::SentryGimbalMsg sentryGimbalStatus3;
+RosComm::SentryGimbalMsg sentryGimbalStatus4;
+RosComm::GimbalMsg gimbalImuStatus;
+// RosComm::ChassisIMU chassisImuStatus;
+// RosComm::RefereeState refereeState;
+
+enum Task
+{
+    GIMBAL_MSG = 0,
+    SENTRY_GIMBAL_MSG
+    // GimbalIMU,
+    // CHASSIS_IMU_MSG,
+    // ROBOT_SURVIVAL_MSG
+};
+
+// RosComm::
+
+void sendRosMessage(void *pvPara)
+{
+    // HAL_GPIO_WritePin(LED_ACT_GPIO_Port, LED_ACT_Pin, GPIO_PIN_RESET);
+
+    while (true)
+    {
+        sentryGimbalStatus1.cur_cv_mode  = 1;
+        sentryGimbalStatus1.target_color = 2;
+        sentryGimbalStatus1.bullet_speed = 1.0f;
+        sentryGimbalStatus1.small_q[0]   = 1.0f;
+        sentryGimbalStatus1.small_q[1]   = 2.0f;
+        sentryGimbalStatus1.small_q[2]   = 2.0f;
+        sentryGimbalStatus1.small_q[3]   = 1.0f;
+        sentryGimbalStatus1.big_q[0]     = 1.0f;
+        sentryGimbalStatus1.big_q[1]     = 2.0f;
+        sentryGimbalStatus1.big_q[2]     = 2.0f;
+        sentryGimbalStatus1.big_q[3]     = 1.0f;
+
+        RosComm::RosManager::managers[0].transmit(header2, (uint8_t *)&sentryGimbalStatus1);
+
+        vTaskDelay(1);
+
+        // HAL_GPIO_TogglePin(LED_ACT_GPIO_Port, LED_ACT_Pin);
+        // HAL_GPIO_TogglePin(LASER_GPIO_Port, LASER_Pin);
+        // vTaskDelay(500);
+    }
+}
+
+void sendRosMessage2(void *pvPara)
+{
+    while (true)
+    {
+        sentryGimbalStatus2.cur_cv_mode  = 1;
+        sentryGimbalStatus2.target_color = 2;
+        sentryGimbalStatus2.bullet_speed = 1.0f;
+        sentryGimbalStatus2.small_q[0]   = IMU::getQuaternion().getW();
+        sentryGimbalStatus2.small_q[1]   = IMU::getQuaternion().getY();
+        sentryGimbalStatus2.small_q[2]   = IMU::getQuaternion().getZ();
+        sentryGimbalStatus2.small_q[3]   = IMU::getQuaternion().getX();
+        sentryGimbalStatus2.big_q[0]     = 1.0f;
+        sentryGimbalStatus2.big_q[1]     = 2.0f;
+        sentryGimbalStatus2.big_q[2]     = 2.0f;
+        sentryGimbalStatus2.big_q[3]     = 1.0f;
+
+        RosComm::RosManager::managers[0].transmit(header2, (uint8_t *)&sentryGimbalStatus2);
+
+        vTaskDelay(1);
+
+        // HAL_GPIO_TogglePin(LED_ACT_GPIO_Port, LED_ACT_Pin);
+        // HAL_GPIO_TogglePin(LASER_GPIO_Port, LASER_Pin);
+        // vTaskDelay(500);
+    }
+}
+
+void sendRosMessage3(void *pvPara)
+{
+    while (1)
+    {
+        sentryGimbalStatus3.cur_cv_mode  = 1;
+        sentryGimbalStatus3.target_color = 2;
+        sentryGimbalStatus3.bullet_speed = 1.0f;
+        sentryGimbalStatus3.small_q[0]   = IMU::getQuaternion().getW();
+        sentryGimbalStatus3.small_q[1]   = IMU::getQuaternion().getY();
+        sentryGimbalStatus3.small_q[2]   = IMU::getQuaternion().getZ();
+        sentryGimbalStatus3.small_q[3]   = IMU::getQuaternion().getX();
+        sentryGimbalStatus3.big_q[0]     = 1.0f;
+        sentryGimbalStatus3.big_q[1]     = 2.0f;
+        sentryGimbalStatus3.big_q[2]     = 2.0f;
+        sentryGimbalStatus3.big_q[3]     = 1.0f;
+
+        RosComm::RosManager::managers[0].transmit(header2, (uint8_t *)&sentryGimbalStatus3);
+
+        vTaskDelay(1);
+    }
+}
+
+void sendRosMessage4(void *pvPara)
+{
+    while (1)
+    {
+        sentryGimbalStatus4.cur_cv_mode  = 1;
+        sentryGimbalStatus4.target_color = 2;
+        sentryGimbalStatus4.bullet_speed = 1.0f;
+        sentryGimbalStatus4.small_q[0]   = IMU::getQuaternion().getW();
+        sentryGimbalStatus4.small_q[1]   = IMU::getQuaternion().getY();
+        sentryGimbalStatus4.small_q[2]   = IMU::getQuaternion().getZ();
+        sentryGimbalStatus4.small_q[3]   = IMU::getQuaternion().getX();
+        sentryGimbalStatus4.big_q[0]     = 1.0f;
+        sentryGimbalStatus4.big_q[1]     = 2.0f;
+        sentryGimbalStatus4.big_q[2]     = 2.0f;
+        sentryGimbalStatus4.big_q[3]     = 1.0f;
+
+        RosComm::RosManager::managers[0].transmit(header2, (uint8_t *)&sentryGimbalStatus4);
+        RosComm::RosManager::managers[0].transmit(header2, (uint8_t *)&sentryGimbalStatus4);
+
+        vTaskDelay(1);
+    }
+}
+
+/**
+ * @brief Create user tasks
+ */
+void startUserTasks()
+{
+    IMU::init();
+
+    xTaskCreateStatic(sendRosMessage, "1", 1024, nullptr, 2, uxSendRosMessageStack[0], &xSendRosMessageTCB[0]);
+    xTaskCreateStatic(sendRosMessage2, "2", 1024, nullptr, 5, uxSendRosMessageStack[1], &xSendRosMessageTCB[1]);
+    xTaskCreateStatic(sendRosMessage3, "3", 1024, nullptr, 7, uxSendRosMessageStack[2], &xSendRosMessageTCB[2]);
+    xTaskCreateStatic(sendRosMessage4, "4", 1024, nullptr, 14, uxSendRosMessageStack[3], &xSendRosMessageTCB[3]);
+
+    RosComm::RosManager::managers[0].init(&huart3);
+    RosComm::RosManager::managers[1].init(&huart2);
+}
+```
+
+
+
+#### 测试结果与分析
+
+##### 下位机接收测试
+
+![experiment_MCU](/home/fallengold/Documents/RM2024/Open Source/asset/experiment_MCU.png)
+
+*[0]: 总共收到的数据包数量； [1]: 收到帧头不完整的情况次数 ；[2]: 收到数据段不完整的情况；[3]: 帧头CRC错误；[4]: 整个数据帧CRC错误的情况*
+
+- 总共接收到 $8113356$ 个数据帧， 其中共有 $81$ 个包发生了CRC错误，计算下来CRC错误率为 $0.001\%$，可以基本忽略不计。此外，在整个过程中外设仅仅产生过一次报错的情况$ (rxErrorCounter = 1)$
+- 平均帧接收频率为 $8240 Hz$, 每个数据包如前文所述平均（可能估计不准，忘记为每个收到的包的数量作统计了）大小为 $\frac{16 + 19 + 33 + 13 + 20}{5} = 20.2$ bytes，整个系统有效传输信息量 > $10 \times 20.2 \times 8240 = 1.65M$ bits/s。
+
+
+
+##### 下位机发送测试
+
+![experiment_host](/home/fallengold/Documents/RM2024/Open Source/asset/experiment_host.png)
+
+*上位机接收数据帧统计*
+
+
+
+- 实际上位机帧接收频率为 $3992Hz$, 基本吻合下位机传输帧的频率。每个数据包大小为 $47$ bytes, 系统有效传输信息量 $ > 3992 \times 47 \times 10 = 1.88 M$ bits/s。
+- CRC 错误率为 $0.035\%$, 基本可以忽略不计。
+
+
+
+##### 下位机开销分析
+
+中断函数在我们的设计中主要起到了一个提供信号量的作用，因此，这一部分开销是可以忽略不计的（ < 5us ）。我们主要关心的是各个任务内部的开销（尤其是涉及到内存拷贝的代码段）。
+
+以下， 我们用 *SystemView* 去观测下位机模块的任务开销。 
+
+![experiment_systemview](/home/fallengold/Documents/RM2024/Open Source/asset/experiment_systemview.png)
+
+*“ros tx/rx task”是模块内部的守护线程，"1""2""3""4"是用户线程， “Sensor”是IMU驱动守护线程*
+
+由以上结果可知，即便在满负荷（单工带宽接近2M）运行的情况下，模块开销依然不高。在考虑SystemView带宽不够会导致观测overflow的情况下， 模块内部开销至多占系统总开销的 $5\%$，$4$ 个用户线程的开销至多在$10\%$左右。在赛场上我们的实际使用带宽远远低于最大带宽，实际占用开销可能就只有 $5\%$左右，可以令人满意。
+
+
+
+## 改进空间
+
+虽然相较于ENTERPRIZE战队之前的通讯模块，本模块在通讯质量与速度方面都有了显著的提升。然而，在赛场上部署调试的过程中，我们依旧发现进步空间，主要为以下两点：
+
+- 没有做延迟测试：虽然我们严格地通过实验验证了本通讯方案的稳定性，但我们在今年CV调试的过程中，偶尔感觉会发现整个系统的延迟变大。为了严格验证是否是本模块的设计仍然有不足，需要与上位机联动进行通讯回环测试。
+- 下位机的用户发送API仍然存在两次的内存拷贝，未来可以设计一个开销更低的API同时保证用户使用的简洁性。
+
+我们今年将会继续补全这一部分的测试。
+
+
+
+## 后记
 
 
 
